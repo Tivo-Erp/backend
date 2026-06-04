@@ -1,0 +1,21 @@
+import { FieldConfig } from '../../../common/utils/field-selector.js';
+
+export const BRANCH_FIELD_CONFIG: FieldConfig = {
+  defaultFields: ['id', 'code', 'name', 'isActive', 'isHeadquarters'],
+  allowedFields: {
+    tenant_owner: [
+      'id', 'code', 'name', 'address', 'city', 'phone', 'email',
+      'isHeadquarters', 'isActive', 'createdAt', 'updatedAt',
+    ],
+    tenant_admin: [
+      'id', 'code', 'name', 'address', 'city', 'phone', 'email',
+      'isHeadquarters', 'isActive', 'createdAt', 'updatedAt',
+    ],
+    manager: [
+      'id', 'code', 'name', 'address', 'city', 'phone', 'email',
+      'isHeadquarters', 'isActive',
+    ],
+    staff: ['id', 'code', 'name', 'address', 'city', 'isActive'],
+    viewer: ['id', 'code', 'name', 'isActive'],
+  },
+};

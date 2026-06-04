@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// PLATFORM (No RLS - cross-tenant)
+// ============================================================
+
+model Plan {
+  id            String   @id @default(uuid()) @db.Uuid
+  code          String   @unique @db.VarChar(50)
+  name          String   @db.VarChar(200)
+  description   String?  @db.Text
+  maxUsers      Int?
+  priceMonthly  Decimal  @default(0) @db.Decimal(15, 2)
+  priceYearly   Decimal  @default(0) @db.Decimal(15, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscriptions Subscription[]
+  features      PlanFeature[]
+
+  @@map("plans")
+}
+
+model PlanFeature {
+  id         String  @id @default(uuid()) @db.Uuid
+  planId     String  @db.Uuid
+  featureKey String  @db.VarChar(100)
+  isEnabled  Boolean @default(false)
+
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@unique([planId, featureKey])
+  @@map("plan_features")
+}
+
+// ============================================================
+// TENANT CORE (RLS enabled)
+// ============================================================
+
+model Tenant {
+  id           String   @id @default(uuid()) @db.Uuid
+  slug         String   @unique @db.VarChar(63)
+  name         String   @db.VarChar(255)
+  legalName    String?  @db.VarChar(255)
+  taxCode      String?  @db.VarChar(20)
+  logoUrl      String?  @db.Text
+  timezone     String   @default("Asia/Ho_Chi_Minh") @db.VarChar(50)
+  locale       String   @default("vi-VN") @db.VarChar(10)
+  baseCurrency String   @default("VND") @db.VarChar(3)
+  status       String   @default("pending") @db.VarChar(20)
+  settings     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users         User[]
+  branches      Branch[]
+  roles         Role[]
+  subscriptions Subscription[]
+
+  @@map("tenants")
+}
+
+model Subscription {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  planId           String    @db.Uuid
+  status           String    @default("trialing") @db.VarChar(20)
+  currentPeriodEnd DateTime?
+  trialEndDate     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Branch {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  code           String   @db.VarChar(20)
+  name           String   @db.VarChar(255)
+  address        String?  @db.Text
+  city           String?  @db.VarChar(100)
+  phone          String?  @db.VarChar(20)
+  email          String?  @db.VarChar(255)
+  isHeadquarters Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, code])
+  @@map("branches")
+}
+
+model User {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  email            String    @db.VarChar(255)
+  passwordHash     String    @db.VarChar(255)
+  firstName        String    @db.VarChar(100)
+  lastName         String    @db.VarChar(100)
+  avatarUrl        String?   @db.Text
+  status           String    @default("invited") @db.VarChar(20)
+  mfaEnabled       Boolean   @default(false)
+  mfaSecret        String?   @db.VarChar(255)
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  lastLoginIp      String?   @db.VarChar(45)
+  isSuperAdmin     Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  userRoles UserRole[]
+
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(uuid()) @db.Uuid
+  code        String @unique @db.VarChar(100)
+  module      String @db.VarChar(50)
+  description String @db.VarChar(255)
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(uuid()) @db.Uuid
+  roleId       String @db.Uuid
+  permissionId String @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  roleId String @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  token     String    @unique @db.VarChar(500)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  userId     String?  @db.Uuid
+  action     String   @db.VarChar(50)
+  module     String   @db.VarChar(50)
+  entityType String?  @db.VarChar(100)
+  entityId   String?  @db.Uuid
+  changes    Json?
+  ipAddress  String?  @db.VarChar(45)
+  userAgent  String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, module])
+  @@map("audit_logs")
+}
+
+model DocumentSequence {
+  id            String  @id @default(uuid()) @db.Uuid
+  tenantId      String  @db.Uuid
+  documentType  String  @db.VarChar(20)
+  prefix        String  @db.VarChar(10)
+  separator     String  @default("-") @db.VarChar(5)
+  includeYear   Boolean @default(true)
+  yearFormat    String  @default("YYYY") @db.VarChar(10)
+  padding       Int     @default(5)
+  lastNumber    Int     @default(0)
+  lastResetYear Int?
+  resetYearly   Boolean @default(true)
+  branchId      String? @db.Uuid
+
+  @@unique([tenantId, documentType, branchId])
+  @@map("document_sequences")
+}

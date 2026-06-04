@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Keys (dev only — production keys via secrets management)
+keys/
+
+# Coverage
+coverage/
+
+# Debug
+npm-debug.log*
