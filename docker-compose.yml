@@ -1,4 +1,8 @@
-version: '3.8'
+# ──────────────────────────────────────────────────────────────
+# ERP Backend — Development Infrastructure
+# Only Postgres & Redis. App runs locally via: npm run start:dev
+# ──────────────────────────────────────────────────────────────
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -9,10 +13,20 @@ services:
       POSTGRES_PASSWORD: erp_secret_dev
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_admin -d erp_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     ports: ['6379:6379']
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

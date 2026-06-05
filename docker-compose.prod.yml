@@ -1,0 +1,102 @@
+# ──────────────────────────────────────────────────────────────
+# ERP Backend — Production Docker Compose
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml down
+#   docker compose -f docker-compose.prod.yml logs -f app
+# ──────────────────────────────────────────────────────────────
+
+services:
+  # ─── Application ─────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp-backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-erp_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp_prod}
+      REDIS_URL: redis://redis:6379
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-3600}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-604800}
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - erp-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+
+  # ─── PostgreSQL ──────────────────────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    container_name: erp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-erp_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-erp_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp_admin} -d ${POSTGRES_DB:-erp_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - erp-network
+    # No ports exposed — only accessible within Docker network
+
+  # ─── Redis ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: erp-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - erp-network
+    # No ports exposed — only accessible within Docker network
+
+# ─── Secrets ─────────────────────────────────────────────────
+secrets:
+  jwt_private_key:
+    file: ${JWT_PRIVATE_KEY_FILE:-./keys/private.pem}
+  jwt_public_key:
+    file: ${JWT_PUBLIC_KEY_FILE:-./keys/public.pem}
+
+# ─── Volumes ─────────────────────────────────────────────────
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+# ─── Networks ────────────────────────────────────────────────
+networks:
+  erp-network:
+    driver: bridge

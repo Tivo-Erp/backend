@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { TenantGuard } from './common/guards/tenant.guard.js';
 import { RbacGuard } from './common/guards/rbac.guard.js';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor.js';
+import { HealthModule } from './common/health/health.module.js';
 import { OrgModule } from './modules/org/org.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UamModule } from './modules/uam/uam.module.js';
@@ -18,6 +19,7 @@ import { UamModule } from './modules/uam/uam.module.js';
       isGlobal: true,
       load: [appConfig],
     }),
+    HealthModule,
     DatabaseModule,
     AuthModule,
     OrgModule,

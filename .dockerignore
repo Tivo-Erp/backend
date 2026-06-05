@@ -1,0 +1,43 @@
+# Dependencies (will be installed fresh in container)
+node_modules/
+
+# Build output
+dist/
+
+# Environment files (injected at runtime, not baked into image)
+.env
+.env.*
+
+# Keys (mounted as secrets at runtime)
+keys/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Test & Coverage
+test/
+coverage/
+*.spec.ts
+
+# Documentation
+README.md
+*.md
+
+# Docker (prevent recursive context)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Debug logs
+npm-debug.log*
+
+# Agent config
+.agent/
