@@ -382,10 +382,25 @@ cd erp-backend
 mkdir -p keys
 openssl genrsa -out keys/private.pem 2048
 openssl rsa -in keys/private.pem -pubout -out keys/public.pem
-chmod 600 keys/private.pem  # restrict private key permissions
+
+# ⚠️ BẮT BUỘC: cấp quyền cho user trong container đọc được khóa.
+# Container chạy bằng non-root user `erp` (uid 1001). Docker Compose
+# (non-swarm) bind-mount thẳng file khóa vào /run/secrets/ và GIỮ NGUYÊN
+# owner/mode của file host. Nếu khóa thuộc root + mode 600, uid 1001 sẽ
+# không đọc được → app crash khi khởi động:
+#   ERROR [ExceptionHandler] Error: EACCES: permission denied, open '/run/secrets/jwt_private_key'
+sudo chown 1001:1001 keys/private.pem keys/public.pem
+chmod 600 keys/private.pem keys/public.pem
 ```
 
 > Store `keys/` directory securely. Add it to `.gitignore` (already done).
+>
+> **Lưu ý quyền khóa:** trường `uid/gid/mode` của `secrets` trong compose chỉ có
+> tác dụng ở **Swarm mode** — `docker compose` thường bỏ qua, nên phải set owner
+> bằng tay như trên. Mỗi khi **tạo lại khóa**, chạy lại 2 lệnh `chown`/`chmod`.
+> Cách này giữ mode `600` (không world-readable) nhưng vẫn cho uid 1001 đọc được.
+> Nếu sau này chuyển sang Docker Swarm, có thể khai báo `uid/gid/mode` trong
+> compose và bỏ bước `chown` thủ công.
 
 #### 4. Configure production environment
 
