@@ -55,9 +55,9 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Prisma 7 requires prisma.config.js at the working directory root to find
-# datasource.url when running `prisma migrate deploy`. Copy the compiled version.
-COPY --from=builder /app/dist/prisma.config.js ./prisma.config.js
+# Prisma 7 loads prisma.config.ts directly with its built-in TS runtime.
+# Must be present at the working directory root for `prisma migrate deploy`.
+COPY prisma.config.ts ./
 
 # Set ownership
 RUN chown -R erp:erp /app
