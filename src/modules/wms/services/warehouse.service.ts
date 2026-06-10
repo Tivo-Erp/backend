@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FieldSelector } from 'src/common/utils/field-selector.js';
+import { FieldSelector } from '../../../common/utils/field-selector.js';
 import {
   WAREHOUSE_FIELD_CONFIG,
   ZONE_FIELD_CONFIG,

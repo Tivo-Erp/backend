@@ -15,18 +15,18 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard.js';
-import { RbacGuard } from 'src/common/guards/rbac.guard.js';
-import { TenantGuard } from 'src/common/guards/tenant.guard.js';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.js';
+import { RbacGuard } from '../../../common/guards/rbac.guard.js';
+import { TenantGuard } from '../../../common/guards/tenant.guard.js';
 import {
   CurrentTenant,
   CurrentUser,
   CurrentUserRoles,
   RequirePermissions,
-} from 'src/common/decorators/index.js';
-import { FieldSelector } from 'src/common/utils/field-selector.js';
-import { PaginatedFieldsQueryDto } from 'src/common/dto/fields-query.dto.js';
-import type { JwtPayload } from 'src/modules/auth/interfaces/jwt-payload.interface.js';
+} from '../../../common/decorators/index.js';
+import { FieldSelector } from '../../../common/utils/field-selector.js';
+import { PaginatedFieldsQueryDto } from '../../../common/dto/fields-query.dto.js';
+import type { JwtPayload } from '../../auth/interfaces/jwt-payload.interface.js';
 import { BALANCE_FIELD_CONFIG } from '../config/balance.field-config.js';
 import { MOVEMENT_FIELD_CONFIG } from '../config/movement.field-config.js';
 import { InventoryService } from '../services/inventory.service.js';

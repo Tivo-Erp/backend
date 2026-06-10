@@ -3,9 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/infra/database/prisma.service.js';
-import { FieldSelector } from 'src/common/utils/field-selector.js';
-import { PaginatedResponseDto } from 'src/common/dto/pagination.dto.js';
+import { PrismaService } from '../../../infra/database/prisma.service.js';
+import { FieldSelector } from '../../../common/utils/field-selector.js';
+import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { BALANCE_FIELD_CONFIG } from '../config/balance.field-config.js';
 import { MOVEMENT_FIELD_CONFIG } from '../config/movement.field-config.js';
 import {

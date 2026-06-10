@@ -4,8 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FieldSelector } from 'src/common/utils/field-selector.js';
-import { PaginatedResponseDto } from 'src/common/dto/pagination.dto.js';
+import { FieldSelector } from '../../../common/utils/field-selector.js';
+import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { ITEM_FIELD_CONFIG } from '../config/item.field-config.js';
 import { ItemRepository } from '../repositories/item.repository.js';
 import { CreateItemDto } from '../dto/create-item.dto.js';

@@ -19,16 +19,16 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard.js';
-import { RbacGuard } from 'src/common/guards/rbac.guard.js';
-import { TenantGuard } from 'src/common/guards/tenant.guard.js';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard.js';
+import { RbacGuard } from '../../../common/guards/rbac.guard.js';
+import { TenantGuard } from '../../../common/guards/tenant.guard.js';
 import {
   CurrentTenant,
   CurrentUserRoles,
   RequirePermissions,
-} from 'src/common/decorators/index.js';
-import { FieldSelector } from 'src/common/utils/field-selector.js';
-import { PaginatedFieldsQueryDto } from 'src/common/dto/fields-query.dto.js';
+} from '../../../common/decorators/index.js';
+import { FieldSelector } from '../../../common/utils/field-selector.js';
+import { PaginatedFieldsQueryDto } from '../../../common/dto/fields-query.dto.js';
 import { ITEM_FIELD_CONFIG } from '../config/item.field-config.js';
 import { ItemService } from '../services/item.service.js';
 import { CreateItemDto } from '../dto/create-item.dto.js';

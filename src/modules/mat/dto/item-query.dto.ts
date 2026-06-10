@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { PaginatedFieldsQueryDto } from 'src/common/dto/fields-query.dto.js';
+import { PaginatedFieldsQueryDto } from '../../../common/dto/fields-query.dto.js';
 import { ItemStatus } from './update-item.dto.js';
 import { ItemType } from './create-item.dto.js';
 

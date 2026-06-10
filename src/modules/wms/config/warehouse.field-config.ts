@@ -1,4 +1,4 @@
-import { FieldConfig } from 'src/common/utils/field-selector.js';
+import { FieldConfig } from '../../../common/utils/field-selector.js';
 
 const BASE_FIELDS = ['id', 'code', 'name', 'branchId', 'isActive', 'createdAt'];
 const FULL_FIELDS = [...BASE_FIELDS, 'address', 'updatedAt'];

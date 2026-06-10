@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { InventoryService } from './inventory.service.js';
-import { PrismaService } from 'src/infra/database/prisma.service.js';
+import { PrismaService } from '../../../infra/database/prisma.service.js';
 
 const makePrisma = () => ({
   inventoryBalance: {

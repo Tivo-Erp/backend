@@ -13,7 +13,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { PaginationQueryDto } from 'src/common/dto/pagination.dto.js';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 
 // ── INV-001: Stock Balance Query ──────────────────────────────
 
