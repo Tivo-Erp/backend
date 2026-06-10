@@ -65,6 +65,10 @@ export class BranchRepository {
     return this.prisma.branch.update({ where: { id }, data });
   }
 
+  async countWarehouses(branchId: string) {
+    return this.prisma.warehouse.count({ where: { branchId } });
+  }
+
   async delete(id: string) {
     return this.prisma.branch.delete({ where: { id } });
   }

@@ -69,4 +69,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 # Use dumb-init to handle PID 1 properly (signal forwarding)
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/main.js"]
+# Run Prisma migrations before starting the app.
+# 'prisma migrate deploy' is idempotent — safe to run on every startup.
+# It will apply any pending migrations without touching existing data.
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=src/infra/database/prisma/schema.prisma && node dist/main.js"]

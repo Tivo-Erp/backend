@@ -228,3 +228,200 @@ model DocumentSequence {
   @@unique([tenantId, documentType, branchId])
   @@map("document_sequences")
 }
+
+// ============================================================
+// MASTER DATA (M-MAT)  — Batch 2
+// ============================================================
+
+model ItemCategory {
+  id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String  @db.Uuid
+  name      String  @db.VarChar(200)
+  parentId  String? @db.Uuid
+  sortOrder Int     @default(0)
+
+  parent   ItemCategory?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children ItemCategory[] @relation("CategoryTree")
+  items    Item[]
+
+  @@unique([tenantId, name])
+  @@map("item_categories")
+}
+
+model Item {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  sku              String   @db.VarChar(100)
+  name             String   @db.VarChar(500)
+  description      String?  @db.Text
+  categoryId       String?  @db.Uuid
+  itemType         String   @db.VarChar(30) // product, raw_material, semi_finished, service, consumable
+  baseUom          String   @db.VarChar(20)
+  weight           Decimal? @db.Decimal(10, 4)
+  isBatchTracked   Boolean  @default(false)
+  isSerialTracked  Boolean  @default(false)
+  isPurchasable    Boolean  @default(true)
+  isSellable       Boolean  @default(true)
+  minStockLevel    Decimal? @db.Decimal(15, 4)
+  safetyStock      Decimal? @db.Decimal(15, 4)
+  leadTimeDays     Int?
+  status           String   @default("draft") @db.VarChar(20)
+  customAttributes Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  category          ItemCategory?      @relation(fields: [categoryId], references: [id])
+  inventoryBalances InventoryBalance[]
+  bomParent         BOM[]              @relation("BOMParent")
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, status])
+  @@index([tenantId, itemType])
+  @@map("items")
+}
+
+model BOM {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  itemId    String   @db.Uuid
+  name      String   @db.VarChar(200)
+  version   Int      @default(1)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  item  Item      @relation("BOMParent", fields: [itemId], references: [id])
+  lines BOMLine[]
+
+  @@unique([tenantId, itemId, version])
+  @@map("boms")
+}
+
+model BOMLine {
+  id              String  @id @default(uuid()) @db.Uuid
+  bomId           String  @db.Uuid
+  componentItemId String  @db.Uuid
+  quantityPerUnit Decimal @db.Decimal(15, 6)
+  uom             String  @db.VarChar(20)
+  scrapPct        Decimal @default(0) @db.Decimal(5, 2)
+  sortOrder       Int     @default(0)
+
+  bom BOM @relation(fields: [bomId], references: [id], onDelete: Cascade)
+
+  @@map("bom_lines")
+}
+
+// ============================================================
+// WAREHOUSE (M-WMS)  — Batch 2
+// ============================================================
+
+model Warehouse {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  code      String   @db.VarChar(20)
+  name      String   @db.VarChar(200)
+  branchId  String?  @db.Uuid
+  address   String?  @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  zones             Zone[]
+  inventoryBalances InventoryBalance[]
+
+  @@unique([tenantId, code])
+  @@map("warehouses")
+}
+
+model Zone {
+  id          String @id @default(uuid()) @db.Uuid
+  warehouseId String @db.Uuid
+  code        String @db.VarChar(20)
+  name        String @db.VarChar(200)
+  zoneType    String @db.VarChar(30) // bulk, pick, staging, quarantine, dispatch, receiving, storage
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  bins      Bin[]
+
+  @@unique([warehouseId, code])
+  @@map("zones")
+}
+
+model Bin {
+  id          String   @id @default(uuid()) @db.Uuid
+  zoneId      String   @db.Uuid
+  barcode     String   @db.VarChar(50)
+  label       String?  @db.VarChar(100)
+  binType     String   @db.VarChar(20) // general, pick, bulk, pallet, refrigerated
+  maxWeightKg Decimal? @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+
+  zone Zone @relation(fields: [zoneId], references: [id])
+
+  @@unique([zoneId, barcode])
+  @@map("bins")
+}
+
+// ============================================================
+// INVENTORY (M-INV)  — Batch 2
+// ============================================================
+
+model InventoryBalance {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  itemId           String   @db.Uuid
+  warehouseId      String   @db.Uuid
+  variantId        String?  @db.Uuid
+  binId            String?  @db.Uuid
+  lotId            String?  @db.Uuid
+  quantityOnHand   Decimal  @default(0) @db.Decimal(15, 4)
+  quantityReserved Decimal  @default(0) @db.Decimal(15, 4)
+  costPerUnit      Decimal  @default(0) @db.Decimal(15, 4)
+  uom              String   @db.VarChar(20)
+  updatedAt        DateTime @updatedAt
+
+  item      Item      @relation(fields: [itemId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([tenantId, itemId, warehouseId, variantId, binId, lotId])
+  @@index([tenantId, warehouseId])
+  @@index([tenantId, itemId])
+  @@map("inventory_balances")
+}
+
+model StockMovement {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  itemId        String   @db.Uuid
+  warehouseId   String   @db.Uuid
+  movementType  String   @db.VarChar(30) // grn_receipt, sales_shipment, adjustment, transfer_in, transfer_out, manufacturing_consumption, manufacturing_output
+  direction     String   @db.VarChar(3) // IN, OUT
+  quantity      Decimal  @db.Decimal(15, 4)
+  uom           String   @db.VarChar(20)
+  costPerUnit   Decimal? @db.Decimal(15, 4)
+  referenceType String?  @db.VarChar(50) // PurchaseOrder, SalesOrder
+  referenceId   String?  @db.Uuid
+  binId         String?  @db.Uuid
+  lotId         String?  @db.Uuid
+  notes         String?  @db.Text
+  createdBy     String   @db.Uuid
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, itemId, createdAt])
+  @@index([tenantId, warehouseId, createdAt])
+  @@map("stock_movements")
+}
+
+model Lot {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  lotNumber  String    @db.VarChar(100)
+  itemId     String    @db.Uuid
+  expiryDate DateTime?
+  status     String    @default("active") @db.VarChar(20)
+  createdAt  DateTime  @default(now())
+
+  @@unique([tenantId, lotNumber])
+  @@map("lots")
+}

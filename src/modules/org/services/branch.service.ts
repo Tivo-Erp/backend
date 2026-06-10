@@ -97,6 +97,15 @@ export class BranchService {
       );
     }
 
+    const warehouseCount = await this.branchRepository.countWarehouses(id);
+    if (warehouseCount > 0) {
+      throw new BusinessException(
+        'ORG_BRANCH_HAS_DEPENDENCIES',
+        `Cannot delete branch: ${warehouseCount} warehouse(s) are linked to it`,
+        HttpStatus.CONFLICT,
+      );
+    }
+
     return this.branchRepository.delete(id);
   }
 }

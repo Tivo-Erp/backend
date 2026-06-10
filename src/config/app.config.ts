@@ -7,4 +7,6 @@ export const appConfig = registerAs('app', () => ({
   jwtAccessTtl: parseInt(process.env.JWT_ACCESS_TTL || '3600', 10),
   jwtRefreshTtl: parseInt(process.env.JWT_REFRESH_TTL || '604800', 10),
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+  authMaxFailedAttempts: parseInt(process.env.AUTH_MAX_FAILED_ATTEMPTS || '5', 10),
+  authLockDurationSec: parseInt(process.env.AUTH_LOCK_DURATION_SEC || '1800', 10), // 30 min
 }));

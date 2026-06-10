@@ -12,6 +12,9 @@ import { HealthModule } from './common/health/health.module.js';
 import { OrgModule } from './modules/org/org.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UamModule } from './modules/uam/uam.module.js';
+import { MatModule } from './modules/mat/mat.module.js';
+import { WmsModule } from './modules/wms/wms.module.js';
+import { InvModule } from './modules/inv/inv.module.js';
 
 @Module({
   imports: [
@@ -24,6 +27,9 @@ import { UamModule } from './modules/uam/uam.module.js';
     AuthModule,
     OrgModule,
     UamModule,
+    MatModule,
+    WmsModule,
+    InvModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

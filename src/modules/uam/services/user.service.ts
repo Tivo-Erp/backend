@@ -173,9 +173,16 @@ export class UserService {
         );
       }
 
-      await this.prisma.userRole.deleteMany({ where: { userId } });
-      await this.prisma.userRole.createMany({
-        data: dto.roleIds.map((roleId) => ({ userId, roleId })),
+      return this.prisma.$transaction(async (tx) => {
+        await tx.userRole.deleteMany({ where: { userId } });
+        await tx.userRole.createMany({
+          data: dto.roleIds.map((roleId) => ({ userId, roleId })),
+        });
+        return tx.user.update({
+          where: { id: userId },
+          data,
+          include: { userRoles: { include: { role: true } } },
+        });
       });
     }
 

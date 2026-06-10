@@ -8,9 +8,6 @@ import { LoginDto, RefreshTokenDto } from '../dto/auth.dto.js';
 import { JwtPayload } from '../interfaces/jwt-payload.interface.js';
 import { BusinessException } from '../../../common/exceptions/business.exception.js';
 
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -62,9 +59,11 @@ export class AuthService {
     if (!isPasswordValid) {
       const newFailedCount = user.failedLoginCount + 1;
       const updateData: any = { failedLoginCount: newFailedCount };
+      const maxAttempts = this.configService.get<number>('app.authMaxFailedAttempts', 5);
+      const lockMs = this.configService.get<number>('app.authLockDurationSec', 1800) * 1000;
 
-      if (newFailedCount >= MAX_FAILED_ATTEMPTS) {
-        updateData.lockedUntil = new Date(Date.now() + LOCK_DURATION_MS);
+      if (newFailedCount >= maxAttempts) {
+        updateData.lockedUntil = new Date(Date.now() + lockMs);
         await this.prisma.user.update({
           where: { id: user.id },
           data: updateData,
@@ -200,7 +199,7 @@ export class AuthService {
   private async findUserForLogin(email: string, tenantSlug?: string) {
     if (tenantSlug) {
       const user = await this.prisma.user.findFirst({
-        where: { email, tenant: { slug: tenantSlug } },
+        where: { email, deletedAt: null, tenant: { slug: tenantSlug } },
         include: { tenant: true },
       });
       if (!user) {
@@ -214,7 +213,7 @@ export class AuthService {
     }
 
     const users = await this.prisma.user.findMany({
-      where: { email },
+      where: { email, deletedAt: null },
       include: { tenant: true },
     });
 

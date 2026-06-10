@@ -223,6 +223,9 @@ graph TD
 | `JWT_ACCESS_TTL` | `3600` | Access token TTL (seconds) |
 | `JWT_REFRESH_TTL` | `604800` | Refresh token TTL (seconds) |
 | `PORT` | `3000` | Server port |
+| `AUTH_MAX_FAILED_ATTEMPTS` | `5` | Failed logins before lockout |
+| `AUTH_LOCK_DURATION_SEC` | `1800` | Lockout duration (seconds) |
+| `REDIS_MAX_MEMORY` | `256mb` | Redis memory cap (prod only) |
 
 ---
 
@@ -332,48 +335,241 @@ src/
 
 ---
 
-## Production Build
+## Production Deployment
 
-### Build
+### Requirements
+
+| Component | Minimum Version | Notes |
+|-----------|----------------|-------|
+| **OS** | Ubuntu 20.04 LTS / CentOS 7 | Ubuntu 22.04+ recommended (CentOS 7 EOL Jun 2024) |
+| **Docker Engine** | 20.10+ | Install via [docker-ce](https://docs.docker.com/engine/install/) |
+| **Docker Compose Plugin** | v2.x | `docker compose` (plugin), NOT standalone `docker-compose` v1 |
+| **RAM** | 2 GB min | 4 GB recommended |
+| **Disk** | 20 GB+ | For Docker images + PostgreSQL data |
+
+> **Ubuntu install one-liner:**
+> ```bash
+> curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER
+> ```
+
+---
+
+### Step-by-step: First Deploy
+
+#### 1. Install Docker (Ubuntu 22.04)
 
 ```bash
-npm run build
+# Install Docker Engine + Compose plugin
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verify
+docker --version          # Docker version 24.x+
+docker compose version    # Docker Compose version v2.x
 ```
 
-Compiled output is in `dist/`.
-
-### Run production
+#### 2. Clone project & enter directory
 
 ```bash
-# Set production environment variables
-export NODE_ENV=production
-export DATABASE_URL=postgresql://user:password@host:5432/erp_prod
-export REDIS_URL=redis://host:6379
-
-npm run start:prod
+git clone <your-repo-url>
+cd erp-backend
 ```
 
-### Docker production (multi-stage)
+#### 3. Generate RS256 key pair (JWT)
 
-```dockerfile
-# Stage 1: Build
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY . .
-RUN npm run build
-RUN npm run prisma:generate
+```bash
+mkdir -p keys
+openssl genrsa -out keys/private.pem 2048
+openssl rsa -in keys/private.pem -pubout -out keys/public.pem
+chmod 600 keys/private.pem  # restrict private key permissions
+```
 
-# Stage 2: Run
-FROM node:22-alpine
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/src/infra/database/prisma ./prisma
-EXPOSE 3000
-CMD ["node", "dist/main.js"]
+> Store `keys/` directory securely. Add it to `.gitignore` (already done).
+
+#### 4. Configure production environment
+
+```bash
+cp .env.prod.example .env.prod
+nano .env.prod
+```
+
+**Required fields to change:**
+```bash
+POSTGRES_PASSWORD=<generate: openssl rand -base64 32>
+```
+
+#### 5. First-time database seed (permissions + plans)
+
+```bash
+# Start only postgres first to run seed
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d postgres
+
+# Wait for postgres to be healthy, then run seed
+docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
+  -e DATABASE_URL="postgresql://${POSTGRES_USER:-erp_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp_prod}" \
+  app sh -c "npx prisma db seed --schema=src/infra/database/prisma/schema.prisma" 2>/dev/null || \
+  docker exec erp-postgres psql -U erp_admin -d erp_prod -c "SELECT count(*) FROM permissions;"
+```
+
+> **Shortcut:** You can also seed after full startup using:
+> ```bash
+> docker exec erp-backend npx prisma db seed --schema=src/infra/database/prisma/schema.prisma
+> ```
+
+#### 6. Start all services
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+This will:
+1. Build the Docker image (multi-stage, ~2-3 min)
+2. Start PostgreSQL 17 → waits for healthy
+3. Start Redis 7 → waits for healthy
+4. Start app → **automatically runs `prisma migrate deploy`** then starts NestJS
+
+#### 7. Verify deployment
+
+```bash
+# Check all containers are running
+docker compose -f docker-compose.prod.yml ps
+
+# Check app logs
+docker compose -f docker-compose.prod.yml logs -f app
+
+# Test health endpoint
+curl http://localhost:3000/api/health
+# → { "status": "ok" }
+
+# Test Swagger (only if port 3000 is open or via SSH tunnel)
+# ssh -L 3000:localhost:3000 user@server
+# Then open: http://localhost:3000/api/docs
+```
+
+#### 8. Set up Nginx reverse proxy (recommended)
+
+```nginx
+# /etc/nginx/sites-available/erp-backend
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name api.yourdomain.com;
+
+    ssl_certificate     /etc/letsencrypt/live/api.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 30s;
+    }
+}
+```
+
+```bash
+# Enable + reload nginx
+sudo ln -s /etc/nginx/sites-available/erp-backend /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+---
+
+### Update / Deploy New Version (Zero Data Loss)
+
+```bash
+# 1. Pull latest code
+git pull origin main
+
+# 2. Rebuild image and restart app container
+#    - Existing volumes (pgdata, redisdata) are NEVER touched
+#    - App auto-runs `prisma migrate deploy` on startup
+#    - PostgreSQL and Redis containers are NOT restarted (only app)
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build app
+
+# 3. Verify
+docker compose -f docker-compose.prod.yml logs -f app --tail=50
+```
+
+> **Data safety guarantee:**
+> - `docker compose down` → stops containers, **data volumes preserved**
+> - `docker compose up -d --build` → rebuilds image, **mounts same volumes**
+> - `docker compose restart` → restarts containers, **data untouched**
+> - `docker compose down -v` → ⚠️ **DELETES ALL VOLUMES** — never run on prod
+
+---
+
+### Backup & Restore
+
+#### Backup PostgreSQL
+
+```bash
+# Full backup (gzip compressed)
+docker exec erp-postgres pg_dump -U erp_admin erp_prod \
+  | gzip > /backups/erp_prod_$(date +%Y%m%d_%H%M%S).sql.gz
+
+# Schedule daily backup via cron (as root or docker user)
+# crontab -e
+0 2 * * * docker exec erp-postgres pg_dump -U erp_admin erp_prod | gzip > /backups/erp_prod_$(date +\%Y\%m\%d).sql.gz
+```
+
+#### Restore PostgreSQL
+
+```bash
+# Stop the app first to avoid writes during restore
+docker compose -f docker-compose.prod.yml stop app
+
+# Restore
+gunzip -c /backups/erp_prod_20260610.sql.gz \
+  | docker exec -i erp-postgres psql -U erp_admin -d erp_prod
+
+# Restart app
+docker compose -f docker-compose.prod.yml start app
+```
+
+#### Backup Redis (AOF file)
+
+```bash
+# Redis AOF is at: /var/lib/docker/volumes/erp-backend_redisdata/_data/appendonly.aof
+# Simple copy (while running is safe with AOF):
+docker exec erp-redis redis-cli BGSAVE
+cp /var/lib/docker/volumes/erp-backend_redisdata/_data/dump.rdb /backups/redis_$(date +%Y%m%d).rdb
+```
+
+---
+
+### Useful Commands
+
+```bash
+# Live logs
+docker compose -f docker-compose.prod.yml logs -f app
+
+# Enter app container
+docker exec -it erp-backend sh
+
+# Enter PostgreSQL CLI
+docker exec -it erp-postgres psql -U erp_admin -d erp_prod
+
+# Enter Redis CLI
+docker exec -it erp-redis redis-cli
+
+# Check resource usage
+docker stats erp-backend erp-postgres erp-redis
+
+# Restart only app (keep DB/Redis running)
+docker compose -f docker-compose.prod.yml restart app
+
+# Full restart
+docker compose -f docker-compose.prod.yml down && \
+  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 ```
 
 ---

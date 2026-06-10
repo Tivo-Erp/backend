@@ -1,9 +1,27 @@
 # ──────────────────────────────────────────────────────────────
 # ERP Backend — Production Docker Compose
-# Usage:
-#   docker compose -f docker-compose.prod.yml up -d --build
-#   docker compose -f docker-compose.prod.yml down
+#
+# Requirements:
+#   - Docker Engine ≥ 20.10  (Ubuntu 20.04+ / CentOS 7 with docker-ce)
+#   - Docker Compose Plugin v2  (comes with docker-ce; NOT the old standalone
+#     docker-compose v1 — `deploy.resources` is only respected in v2)
+#   - Copy .env.prod.example → .env.prod and fill all required values
+#
+# First deploy:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Update (zero data loss):
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod pull   # if using registry
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#   # App container auto-runs `prisma migrate deploy` before starting.
+#
+# View logs:
 #   docker compose -f docker-compose.prod.yml logs -f app
+#
+# Stop (keeps volumes/data):
+#   docker compose -f docker-compose.prod.yml down
+#
+# ⚠️  NEVER run `down -v` on production — it deletes all volumes/data!
 # ──────────────────────────────────────────────────────────────
 
 services:
@@ -12,6 +30,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: erp-backend:latest
     container_name: erp-backend
     restart: unless-stopped
     ports:
@@ -25,6 +44,8 @@ services:
       JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-3600}
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-604800}
+      AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-5}
+      AUTH_LOCK_DURATION_SEC: ${AUTH_LOCK_DURATION_SEC:-1800}
     secrets:
       - jwt_private_key
       - jwt_public_key
@@ -35,6 +56,13 @@ services:
         condition: service_healthy
     networks:
       - erp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # deploy.resources requires Docker Compose v2 plugin (docker compose, NOT docker-compose v1).
+    # Ubuntu 22.04+ and CentOS 7 with docker-ce >= 20.10 both support this via the compose plugin.
     deploy:
       resources:
         limits:
@@ -52,26 +80,45 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-erp_prod}
       POSTGRES_USER: ${POSTGRES_USER:-erp_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # :? means Docker will fail loudly if POSTGRES_PASSWORD is not set — intentional
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in .env.prod}
     volumes:
+      # Named volume — data survives: `docker compose down`, `docker compose restart`,
+      # OS reboots, and image rebuilds. Only `docker compose down -v` would delete it.
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp_admin} -d ${POSTGRES_DB:-erp_prod}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 15s
     networks:
       - erp-network
-    # No ports exposed — only accessible within Docker network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+    # PostgreSQL port NOT exposed to host — only accessible within erp-network.
+    # Access via: docker exec -it erp-postgres psql -U erp_admin -d erp_prod
 
   # ─── Redis ───────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: erp-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    # --appendonly yes  → AOF persistence: data survives restart/crash
+    # --maxmemory       → cap memory usage
+    # --maxmemory-policy volatile-lru  → only evict keys WITH TTL (expiry set).
+    #   This protects session data and refresh tokens (no TTL) from eviction.
+    #   allkeys-lru (previous) would evict ANY key including auth tokens.
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory ${REDIS_MAX_MEMORY:-256mb}
+      --maxmemory-policy volatile-lru
     volumes:
+      # Named volume — Redis AOF data persists across restarts
       - redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -80,9 +127,16 @@ services:
       retries: 5
     networks:
       - erp-network
-    # No ports exposed — only accessible within Docker network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Redis port NOT exposed to host — only accessible within erp-network.
 
-# ─── Secrets ─────────────────────────────────────────────────
+# ─── Docker Secrets (JWT RS256 Keys) ─────────────────────────
+# Keys are mounted as files at /run/secrets/ inside the container.
+# They are NEVER stored as environment variables (avoids `env` leaking them).
 secrets:
   jwt_private_key:
     file: ${JWT_PRIVATE_KEY_FILE:-./keys/private.pem}
@@ -90,6 +144,14 @@ secrets:
     file: ${JWT_PUBLIC_KEY_FILE:-./keys/public.pem}
 
 # ─── Volumes ─────────────────────────────────────────────────
+# Named volumes are managed by Docker and persist independently of containers.
+# Data is stored at: /var/lib/docker/volumes/erp-backend_pgdata/_data
+#
+# Backup command (PostgreSQL):
+#   docker exec erp-postgres pg_dump -U erp_admin erp_prod | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+#
+# Restore command:
+#   gunzip -c backup_YYYYMMDD_HHMMSS.sql.gz | docker exec -i erp-postgres psql -U erp_admin -d erp_prod
 volumes:
   pgdata:
     driver: local

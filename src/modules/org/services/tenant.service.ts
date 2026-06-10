@@ -106,16 +106,21 @@ export class TenantService {
       const starterPlan = await tx.plan.findUnique({
         where: { code: 'starter' },
       });
-      if (starterPlan) {
-        await tx.subscription.create({
-          data: {
-            tenantId: tenant.id,
-            planId: starterPlan.id,
-            status: 'trialing',
-            trialEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-          },
-        });
+      if (!starterPlan) {
+        throw new BusinessException(
+          'SYSTEM_PLAN_NOT_FOUND',
+          'Starter plan not found. Run database seed first.',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
       }
+      await tx.subscription.create({
+        data: {
+          tenantId: tenant.id,
+          planId: starterPlan.id,
+          status: 'trialing',
+          trialEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        },
+      });
 
       await tx.documentSequence.createMany({
         data: DEFAULT_DOC_TYPES.map((dt) => ({
