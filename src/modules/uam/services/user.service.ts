@@ -162,10 +162,11 @@ export class UserService {
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
 
     if (dto.roleIds) {
+      const roleIds = dto.roleIds;
       const roles = await this.prisma.role.findMany({
-        where: { id: { in: dto.roleIds }, tenantId },
+        where: { id: { in: roleIds }, tenantId },
       });
-      if (roles.length !== dto.roleIds.length) {
+      if (roles.length !== roleIds.length) {
         throw new BusinessException(
           'UAM_ROLE_NOT_FOUND',
           'One or more roles not found',
@@ -176,7 +177,7 @@ export class UserService {
       return this.prisma.$transaction(async (tx) => {
         await tx.userRole.deleteMany({ where: { userId } });
         await tx.userRole.createMany({
-          data: dto.roleIds.map((roleId) => ({ userId, roleId })),
+          data: roleIds.map((roleId) => ({ userId, roleId })),
         });
         return tx.user.update({
           where: { id: userId },
