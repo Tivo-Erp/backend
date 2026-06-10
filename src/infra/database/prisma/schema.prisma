@@ -234,11 +234,13 @@ model DocumentSequence {
 // ============================================================
 
 model ItemCategory {
-  id        String  @id @default(uuid()) @db.Uuid
-  tenantId  String  @db.Uuid
-  name      String  @db.VarChar(200)
-  parentId  String? @db.Uuid
-  sortOrder Int     @default(0)
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  name      String   @db.VarChar(200)
+  parentId  String?  @db.Uuid
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   parent   ItemCategory?  @relation("CategoryTree", fields: [parentId], references: [id])
   children ItemCategory[] @relation("CategoryTree")
@@ -274,6 +276,8 @@ model Item {
   category          ItemCategory?      @relation(fields: [categoryId], references: [id])
   inventoryBalances InventoryBalance[]
   bomParent         BOM[]              @relation("BOMParent")
+  bomLines          BOMLine[]          @relation("BOMLineComponent")
+  lots              Lot[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, status])
@@ -307,7 +311,8 @@ model BOMLine {
   scrapPct        Decimal @default(0) @db.Decimal(5, 2)
   sortOrder       Int     @default(0)
 
-  bom BOM @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  bom           BOM  @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  componentItem Item @relation("BOMLineComponent", fields: [componentItemId], references: [id])
 
   @@map("bom_lines")
 }
@@ -357,7 +362,9 @@ model Bin {
   maxWeightKg Decimal? @db.Decimal(10, 2)
   isActive    Boolean  @default(true)
 
-  zone Zone @relation(fields: [zoneId], references: [id])
+  zone              Zone               @relation(fields: [zoneId], references: [id])
+  inventoryBalances InventoryBalance[]
+  stockMovements    StockMovement[]
 
   @@unique([zoneId, barcode])
   @@map("bins")
@@ -381,8 +388,10 @@ model InventoryBalance {
   uom              String   @db.VarChar(20)
   updatedAt        DateTime @updatedAt
 
-  item      Item      @relation(fields: [itemId], references: [id])
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  item      Item       @relation(fields: [itemId], references: [id])
+  warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
+  bin       Bin?       @relation(fields: [binId], references: [id])
+  lot       Lot?       @relation(fields: [lotId], references: [id])
 
   @@unique([tenantId, itemId, warehouseId, variantId, binId, lotId])
   @@index([tenantId, warehouseId])
@@ -408,6 +417,9 @@ model StockMovement {
   createdBy     String   @db.Uuid
   createdAt     DateTime @default(now())
 
+  bin Bin? @relation(fields: [binId], references: [id])
+  lot Lot? @relation(fields: [lotId], references: [id])
+
   @@index([tenantId, itemId, createdAt])
   @@index([tenantId, warehouseId, createdAt])
   @@map("stock_movements")
@@ -421,6 +433,10 @@ model Lot {
   expiryDate DateTime?
   status     String    @default("active") @db.VarChar(20)
   createdAt  DateTime  @default(now())
+
+  item              Item               @relation(fields: [itemId], references: [id])
+  inventoryBalances InventoryBalance[]
+  stockMovements    StockMovement[]
 
   @@unique([tenantId, lotNumber])
   @@map("lots")

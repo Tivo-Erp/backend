@@ -73,22 +73,35 @@ export class ItemService {
   }
 
   async bulkImport(tenantId: string, dto: BulkImportItemsDto): Promise<BulkImportResultDto> {
-    let imported = 0;
-    let skipped = 0;
+    const valid: typeof dto.items = [];
     const errors: string[] = [];
 
     for (const item of dto.items) {
+      if (item.isBatchTracked && item.isSerialTracked) {
+        errors.push(`SKU ${item.sku}: batch and serial cannot both be true`);
+      } else {
+        valid.push(item);
+      }
+    }
+
+    let imported = 0;
+    let skipped = errors.length;
+
+    if (valid.length > 0) {
       try {
-        if (item.isBatchTracked && item.isSerialTracked) {
-          errors.push(`SKU ${item.sku}: batch and serial cannot both be true`);
-          skipped++;
-          continue;
-        }
-        await this.repo.upsertBulk(tenantId, [item]);
-        imported++;
+        await this.repo.upsertBulk(tenantId, valid);
+        imported = valid.length;
       } catch (err: any) {
-        errors.push(`SKU ${item.sku}: ${err.message}`);
-        skipped++;
+        // Per-item errors: re-process one-by-one to collect individual failures
+        for (const item of valid) {
+          try {
+            await this.repo.upsertBulk(tenantId, [item]);
+            imported++;
+          } catch (e: any) {
+            errors.push(`SKU ${item.sku}: ${e.message}`);
+            skipped++;
+          }
+        }
       }
     }
 

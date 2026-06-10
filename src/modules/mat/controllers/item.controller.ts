@@ -95,6 +95,9 @@ export class ItemController {
   @Patch(':id')
   @RequirePermissions('mat:item:update')
   @ApiOperation({ summary: 'Update item' })
+  @ApiResponse({ status: 200, description: 'Item updated' })
+  @ApiResponse({ status: 404, description: 'Item not found' })
+  @ApiResponse({ status: 409, description: 'SKU duplicate' })
   update(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -107,6 +110,8 @@ export class ItemController {
   @RequirePermissions('mat:item:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Soft-delete item' })
+  @ApiResponse({ status: 204, description: 'Item deleted' })
+  @ApiResponse({ status: 404, description: 'Item not found' })
   remove(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -117,6 +122,9 @@ export class ItemController {
   @Post(':id/activate')
   @RequirePermissions('mat:item:update')
   @ApiOperation({ summary: 'Activate item (draft → active)' })
+  @ApiResponse({ status: 200, description: 'Item activated' })
+  @ApiResponse({ status: 400, description: 'Invalid status transition' })
+  @ApiResponse({ status: 404, description: 'Item not found' })
   activate(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

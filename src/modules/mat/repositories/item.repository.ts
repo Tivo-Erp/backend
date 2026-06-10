@@ -17,7 +17,7 @@ export class ItemRepository {
 
   async create(tenantId: string, dto: CreateItemDto) {
     return this.prisma.item.create({
-      data: { tenantId, ...dto },
+      data: { tenantId, ...dto } as any,
     });
   }
 
@@ -63,7 +63,7 @@ export class ItemRepository {
   }
 
   async update(id: string, dto: UpdateItemDto) {
-    return this.prisma.item.update({ where: { id }, data: dto });
+    return this.prisma.item.update({ where: { id }, data: dto as any });
   }
 
   async softDelete(id: string) {

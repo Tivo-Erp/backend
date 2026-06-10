@@ -76,4 +76,8 @@ export class CreateItemDto {
   @ApiPropertyOptional({ example: 7 })
   @IsOptional() @IsInt() @Min(0)
   leadTimeDays?: number;
+
+  @ApiPropertyOptional({ description: 'Free-form JSON attributes', example: { color: 'red', size: 'L' } })
+  @IsOptional()
+  customAttributes?: Record<string, unknown>;
 }

@@ -89,7 +89,10 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "modulePaths": ["<rootDir>"],
     "moduleNameMapper": {
+      "^src/(.*)\\.js$": "<rootDir>/$1",
+      "^src/(.*)$": "<rootDir>/$1",
       "^(\\.\\.?/.*)\\.js$": "$1"
     },
     "transformIgnorePatterns": [

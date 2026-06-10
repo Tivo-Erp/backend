@@ -1,6 +1,18 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 import { PaginationQueryDto } from 'src/common/dto/pagination.dto.js';
 
 // ── INV-001: Stock Balance Query ──────────────────────────────
@@ -32,11 +44,13 @@ export class InventoryQueryDto extends PaginationQueryDto {
 // ── INV-001: Movement History Query ──────────────────────────
 
 export enum MovementType {
-  GRN_RECEIPT   = 'grn_receipt',
-  SALES_SHIPMENT = 'sales_shipment',
-  ADJUSTMENT    = 'adjustment',
-  TRANSFER_IN   = 'transfer_in',
-  TRANSFER_OUT  = 'transfer_out',
+  GRN_RECEIPT                = 'grn_receipt',
+  SALES_SHIPMENT             = 'sales_shipment',
+  ADJUSTMENT                 = 'adjustment',
+  TRANSFER_IN                = 'transfer_in',
+  TRANSFER_OUT               = 'transfer_out',
+  MANUFACTURING_CONSUMPTION  = 'manufacturing_consumption',
+  MANUFACTURING_OUTPUT       = 'manufacturing_output',
 }
 
 export class MovementQueryDto extends PaginationQueryDto {
@@ -63,16 +77,6 @@ export class MovementQueryDto extends PaginationQueryDto {
 
 // ── INV-002: Stock Adjustment ─────────────────────────────────
 
-import { ApiProperty } from '@nestjs/swagger';
-import {
-  ArrayMinSize,
-  IsArray,
-  IsNumber,
-  IsString as IsStr,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-
 export enum AdjustmentReason {
   DAMAGED        = 'damaged',
   COUNT_VARIANCE = 'count_variance',
@@ -89,7 +93,7 @@ export class AdjustmentLineDto {
   @IsNumber({ maxDecimalPlaces: 4 })
   adjustmentQty: number;
 
-  @ApiProperty({ example: 'PCS' }) @IsStr()
+  @ApiProperty({ example: 'PCS' }) @IsString()
   uom: string;
 
   @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID()
@@ -109,7 +113,7 @@ export class CreateStockAdjustmentDto {
   @ApiProperty({ enum: AdjustmentReason }) @IsEnum(AdjustmentReason)
   reasonCode: AdjustmentReason;
 
-  @ApiPropertyOptional() @IsOptional() @IsStr()
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000)
   notes?: string;
 
   @ApiProperty({ type: [AdjustmentLineDto] })
@@ -129,7 +133,7 @@ export class TransferLineDto {
   @IsNumber({ maxDecimalPlaces: 4 })
   quantity: number;
 
-  @ApiProperty({ example: 'PCS' }) @IsStr()
+  @ApiProperty({ example: 'PCS' }) @IsString()
   uom: string;
 
   @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID()
@@ -149,7 +153,7 @@ export class CreateStockTransferDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID()
   toWarehouseId: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsStr()
+  @ApiPropertyOptional() @IsOptional() @IsString()
   notes?: string;
 
   @ApiProperty({ type: [TransferLineDto] })
