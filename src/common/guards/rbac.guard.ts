@@ -24,10 +24,11 @@ export class RbacGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user as JwtPayload;
 
-    if (user.isSuperAdmin) return true;
+    if (user?.isSuperAdmin) return true;
 
+    const granted = Array.isArray(user?.permissions) ? user.permissions : [];
     const hasPermission = requiredPermissions.some((permission) =>
-      user.permissions.includes(permission),
+      granted.includes(permission),
     );
 
     if (!hasPermission) {

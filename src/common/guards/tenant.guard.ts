@@ -1,17 +1,17 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/index.js';
-import { PrismaService } from '../../infra/database/prisma.service.js';
+import { tenantContext } from '../../infra/database/tenant-context.js';
 import { JwtPayload } from '../../modules/auth/interfaces/jwt-payload.interface.js';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class TenantGuard implements CanActivate {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly reflector: Reflector,
-  ) {}
+  constructor(private readonly reflector: Reflector) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -21,9 +21,11 @@ export class TenantGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user as JwtPayload;
 
-    if (!user?.tenantId) return false;
+    if (!user?.tenantId || !UUID_RE.test(user.tenantId)) return false;
 
-    await this.prisma.setTenantContext(user.tenantId);
+    // Bind the tenant id to this request's async context; PrismaService picks
+    // it up to set the RLS context inside every transaction.
+    tenantContext.enterWith(user.tenantId);
     return true;
   }
 }

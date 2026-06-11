@@ -22,6 +22,7 @@ const mockTx = {
   plan: { findUnique: jest.fn() },
   subscription: { create: jest.fn() },
   documentSequence: { createMany: jest.fn() },
+  chartOfAccount: { createMany: jest.fn() },
 };
 
 const mockPrisma = {

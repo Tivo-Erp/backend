@@ -441,3 +441,354 @@ model Lot {
   @@unique([tenantId, lotNumber])
   @@map("lots")
 }
+
+// ============================================================
+// SUPPLIERS + CUSTOMERS  — Batch 3 (M-PUR / M-SAL)
+// ============================================================
+
+model Supplier {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  code             String   @db.VarChar(20)
+  name             String   @db.VarChar(255)
+  legalName        String?  @db.VarChar(255)
+  taxCode          String?  @db.VarChar(20)
+  contactName      String?  @db.VarChar(200)
+  email            String?  @db.VarChar(255)
+  phone            String?  @db.VarChar(20)
+  address          String?  @db.Text
+  creditLimit      Decimal  @default(0) @db.Decimal(15, 2)
+  creditUsed       Decimal  @default(0) @db.Decimal(15, 2)
+  paymentTermsDays Int      @default(30)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, code])
+  @@map("suppliers")
+}
+
+model Customer {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  code             String   @db.VarChar(20)
+  name             String   @db.VarChar(255)
+  legalName        String?  @db.VarChar(255)
+  taxCode          String?  @db.VarChar(20)
+  contactName      String?  @db.VarChar(200)
+  email            String?  @db.VarChar(255)
+  phone            String?  @db.VarChar(20)
+  address          String?  @db.Text
+  creditLimit      Decimal  @default(0) @db.Decimal(15, 2)
+  creditUsed       Decimal  @default(0) @db.Decimal(15, 2)
+  paymentTermsDays Int      @default(30)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  salesOrders SalesOrder[]
+
+  @@unique([tenantId, code])
+  @@map("customers")
+}
+
+// ============================================================
+// PURCHASE ORDERS  — Batch 3 (M-PUR)
+// ============================================================
+
+model PurchaseOrder {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  poNumber         String    @db.VarChar(30)
+  supplierId       String    @db.Uuid
+  warehouseId      String    @db.Uuid
+  branchId         String?   @db.Uuid
+  status           String    @default("draft") @db.VarChar(30)
+  orderDate        DateTime  @default(now())
+  expectedDate     DateTime?
+  paymentTermsDays Int       @default(30)
+  currency         String    @default("VND") @db.VarChar(3)
+  subTotal         Decimal   @default(0) @db.Decimal(15, 2)
+  discountAmount   Decimal   @default(0) @db.Decimal(15, 2)
+  taxAmount        Decimal   @default(0) @db.Decimal(15, 2)
+  grandTotal       Decimal   @default(0) @db.Decimal(15, 2)
+  notes            String?   @db.Text
+  approvedBy       String?   @db.Uuid
+  approvedAt       DateTime?
+  createdBy        String    @db.Uuid
+  updatedBy        String?   @db.Uuid
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  supplier Supplier            @relation(fields: [supplierId], references: [id])
+  lines    PurchaseOrderLine[]
+  grns     GoodsReceipt[]
+
+  @@unique([tenantId, poNumber])
+  @@index([tenantId, status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id          String  @id @default(uuid()) @db.Uuid
+  poId        String  @db.Uuid
+  itemId      String  @db.Uuid
+  variantId   String? @db.Uuid
+  description String? @db.VarChar(500)
+  quantity    Decimal @db.Decimal(15, 4)
+  receivedQty Decimal @default(0) @db.Decimal(15, 4)
+  uom         String  @db.VarChar(20)
+  unitPrice   Decimal @db.Decimal(15, 4)
+  discountPct Decimal @default(0) @db.Decimal(5, 2)
+  taxRateId   String? @db.Uuid
+  taxRate     Decimal @default(0) @db.Decimal(5, 2)
+  lineTotal   Decimal @db.Decimal(15, 2)
+  sortOrder   Int     @default(0)
+
+  po PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  @@index([poId])
+  @@map("purchase_order_lines")
+}
+
+model GoodsReceipt {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  grnNumber   String   @db.VarChar(30)
+  poId        String   @db.Uuid
+  warehouseId String   @db.Uuid
+  receiptDate DateTime @default(now())
+  notes       String?  @db.Text
+  createdBy   String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  po    PurchaseOrder      @relation(fields: [poId], references: [id])
+  lines GoodsReceiptLine[]
+
+  @@unique([tenantId, grnNumber])
+  @@index([tenantId, poId])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  id          String  @id @default(uuid()) @db.Uuid
+  grnId       String  @db.Uuid
+  poLineId    String  @db.Uuid
+  itemId      String  @db.Uuid
+  receivedQty Decimal @db.Decimal(15, 4)
+  binId       String? @db.Uuid
+  lotId       String? @db.Uuid
+  uom         String  @db.VarChar(20)
+
+  grn GoodsReceipt @relation(fields: [grnId], references: [id], onDelete: Cascade)
+
+  @@index([grnId])
+  @@map("goods_receipt_lines")
+}
+
+// ============================================================
+// SALES ORDERS  — Batch 3 (M-SAL)
+// ============================================================
+
+model SalesOrder {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  soNumber       String    @db.VarChar(30)
+  customerId     String    @db.Uuid
+  warehouseId    String    @db.Uuid
+  branchId       String?   @db.Uuid
+  status         String    @default("draft") @db.VarChar(30)
+  orderDate      DateTime  @default(now())
+  deliveryDate   DateTime?
+  currency       String    @default("VND") @db.VarChar(3)
+  subTotal       Decimal   @default(0) @db.Decimal(15, 2)
+  discountAmount Decimal   @default(0) @db.Decimal(15, 2)
+  taxAmount      Decimal   @default(0) @db.Decimal(15, 2)
+  grandTotal     Decimal   @default(0) @db.Decimal(15, 2)
+  notes          String?   @db.Text
+  approvedBy     String?   @db.Uuid
+  approvedAt     DateTime?
+  createdBy      String    @db.Uuid
+  updatedBy      String?   @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  customer Customer         @relation(fields: [customerId], references: [id])
+  lines    SalesOrderLine[]
+
+  @@unique([tenantId, soNumber])
+  @@index([tenantId, status])
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id          String  @id @default(uuid()) @db.Uuid
+  soId        String  @db.Uuid
+  itemId      String  @db.Uuid
+  variantId   String? @db.Uuid
+  quantity    Decimal @db.Decimal(15, 4)
+  shippedQty  Decimal @default(0) @db.Decimal(15, 4)
+  uom         String  @db.VarChar(20)
+  unitPrice   Decimal @db.Decimal(15, 4)
+  discountPct Decimal @default(0) @db.Decimal(5, 2)
+  taxRateId   String? @db.Uuid
+  taxRate     Decimal @default(0) @db.Decimal(5, 2)
+  lineTotal   Decimal @db.Decimal(15, 2)
+  sortOrder   Int     @default(0)
+
+  so SalesOrder @relation(fields: [soId], references: [id], onDelete: Cascade)
+
+  @@index([soId])
+  @@map("sales_order_lines")
+}
+
+// ============================================================
+// FINANCE  — Batch 3 (M-FIN)
+// ============================================================
+
+model ChartOfAccount {
+  id            String  @id @default(uuid()) @db.Uuid
+  tenantId      String  @db.Uuid
+  accountCode   String  @db.VarChar(20)
+  accountName   String  @db.VarChar(255)
+  accountType   String  @db.VarChar(20) // asset, liability, equity, revenue, expense
+  parentCode    String? @db.VarChar(20)
+  isGroup       Boolean @default(false)
+  isActive      Boolean @default(true)
+  normalBalance String  @db.VarChar(10) // debit, credit
+
+  @@unique([tenantId, accountCode])
+  @@index([tenantId, accountType])
+  @@map("chart_of_accounts")
+}
+
+model FiscalPeriod {
+  id       String    @id @default(uuid()) @db.Uuid
+  tenantId String    @db.Uuid
+  year     Int
+  month    Int
+  status   String    @default("open") @db.VarChar(20) // open, closed
+  closedAt DateTime?
+  closedBy String?   @db.Uuid
+
+  @@unique([tenantId, year, month])
+  @@map("fiscal_periods")
+}
+
+model JournalBatch {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  batchNumber String    @db.VarChar(30)
+  description String?   @db.Text
+  reference   String?   @db.VarChar(50)
+  journalDate DateTime
+  status      String    @default("draft") @db.VarChar(20) // draft, posted, reversed
+  sourceType  String    @db.VarChar(30) // manual, sales, purchase, payroll, depreciation, adjustment
+  sourceId    String?   @db.Uuid
+  totalDebit  Decimal   @default(0) @db.Decimal(15, 2)
+  totalCredit Decimal   @default(0) @db.Decimal(15, 2)
+  reversalOf  String?   @db.Uuid
+  postedBy    String?   @db.Uuid
+  postedAt    DateTime?
+  createdBy   String    @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  entries JournalEntry[]
+
+  @@unique([tenantId, batchNumber])
+  @@index([tenantId, journalDate])
+  @@map("journal_batches")
+}
+
+model JournalEntry {
+  id           String  @id @default(uuid()) @db.Uuid
+  batchId      String  @db.Uuid
+  accountCode  String  @db.VarChar(20)
+  description  String? @db.VarChar(500)
+  debitAmount  Decimal @default(0) @db.Decimal(15, 2)
+  creditAmount Decimal @default(0) @db.Decimal(15, 2)
+  costCenterId String? @db.Uuid
+  currency     String  @default("VND") @db.VarChar(3)
+  exchangeRate Decimal @default(1) @db.Decimal(10, 4)
+
+  batch JournalBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@map("journal_entries")
+}
+
+model Invoice {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  invoiceNumber String    @db.VarChar(30)
+  invoiceType   String    @db.VarChar(10) // sales (AR), purchase (AP)
+  partyId       String    @db.Uuid // customerId or supplierId
+  partyType     String    @db.VarChar(20) // customer, supplier
+  sourceId      String?   @db.Uuid // soId or poId
+  status        String    @default("open") @db.VarChar(20) // open, partially_paid, paid, cancelled
+  invoiceDate   DateTime  @default(now())
+  dueDate       DateTime?
+  currency      String    @default("VND") @db.VarChar(3)
+  subTotal      Decimal   @default(0) @db.Decimal(15, 2)
+  taxAmount     Decimal   @default(0) @db.Decimal(15, 2)
+  grandTotal    Decimal   @db.Decimal(15, 2)
+  amountPaid    Decimal   @default(0) @db.Decimal(15, 2)
+  balanceDue    Decimal   @db.Decimal(15, 2)
+  notes         String?   @db.Text
+  createdBy     String    @db.Uuid
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  allocations PaymentAllocation[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, partyId])
+  @@index([tenantId, status])
+  @@map("invoices")
+}
+
+model Payment {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  paymentNumber    String   @db.VarChar(30)
+  direction        String   @db.VarChar(10) // inbound, outbound
+  counterpartyId   String   @db.Uuid
+  counterpartyType String   @db.VarChar(20) // customer, supplier
+  amount           Decimal  @db.Decimal(15, 2)
+  allocatedAmount  Decimal  @default(0) @db.Decimal(15, 2)
+  currency         String   @default("VND") @db.VarChar(3)
+  paymentMethod    String   @db.VarChar(20)
+  paymentDate      DateTime
+  bankReference    String?  @db.VarChar(100)
+  status           String   @default("draft") @db.VarChar(20) // draft, posted
+  journalBatchId   String?  @db.Uuid
+  notes            String?  @db.Text
+  createdBy        String   @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  allocations PaymentAllocation[]
+
+  @@unique([tenantId, paymentNumber])
+  @@index([tenantId, counterpartyId])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id              String  @id @default(uuid()) @db.Uuid
+  paymentId       String  @db.Uuid
+  invoiceId       String  @db.Uuid
+  allocatedAmount Decimal @db.Decimal(15, 2)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("payment_allocations")
+}

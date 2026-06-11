@@ -7,6 +7,7 @@ import { UpdateTenantProfileDto } from '../dto/update-tenant-profile.dto.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { TENANT_FIELD_CONFIG } from '../config/tenant.field-config.js';
 import { BusinessException } from '../../../common/exceptions/business.exception.js';
+import { CHART_OF_ACCOUNTS_VN } from '../../fin/data/chart-of-accounts-vn.js';
 
 const DEFAULT_DOC_TYPES = [
   'PO', 'PR', 'SO', 'SQ', 'INV', 'CN', 'DN', 'GRN', 'WO', 'NCR', 'PAY', 'JB', 'TKT',
@@ -129,6 +130,19 @@ export class TenantService {
           prefix: dt,
           padding: 5,
           resetYearly: true,
+        })),
+      });
+
+      // FIN-001: seed Vietnamese Chart of Accounts (TT200) for the new tenant
+      await tx.chartOfAccount.createMany({
+        data: CHART_OF_ACCOUNTS_VN.map((a) => ({
+          tenantId: tenant.id,
+          accountCode: a.accountCode,
+          accountName: a.accountName,
+          accountType: a.accountType,
+          normalBalance: a.normalBalance,
+          isGroup: a.isGroup,
+          parentCode: a.parentCode ?? null,
         })),
       });
 

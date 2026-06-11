@@ -3,12 +3,16 @@ import { ExecutionContext, HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TenantGuard } from './tenant.guard.js';
 import { RbacGuard } from './rbac.guard.js';
-import { PrismaService } from '../../infra/database/prisma.service.js';
 import { BusinessException } from '../exceptions/business.exception.js';
+import { currentTenantId } from '../../infra/database/tenant-context.js';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function buildContext(user: any, handler?: object, cls?: object): ExecutionContext {
+function buildContext(
+  user: any,
+  handler?: object,
+  cls?: object,
+): ExecutionContext {
   return {
     switchToHttp: () => ({ getRequest: () => ({ user }) }),
     getHandler: () => handler ?? function namedHandler() {},
@@ -20,39 +24,40 @@ function buildContext(user: any, handler?: object, cls?: object): ExecutionConte
 
 describe('TenantGuard', () => {
   let guard: TenantGuard;
-  const mockPrisma = { setTenantContext: jest.fn().mockResolvedValue(undefined) };
   const mockReflector = { getAllAndOverride: jest.fn() };
+  const TENANT_ID = '0e3b4f1a-2c5d-4e6f-8a9b-0c1d2e3f4a5b';
 
   beforeEach(async () => {
     jest.clearAllMocks();
     const module = await Test.createTestingModule({
-      providers: [
-        TenantGuard,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: Reflector, useValue: mockReflector },
-      ],
+      providers: [TenantGuard, { provide: Reflector, useValue: mockReflector }],
     }).compile();
     guard = module.get(TenantGuard);
   });
 
-  it('@Public() route — skips RLS setup, returns true', async () => {
+  it('@Public() route — skips RLS setup, returns true', () => {
     mockReflector.getAllAndOverride.mockReturnValue(true); // isPublic = true
     const ctx = buildContext(null);
-    expect(await guard.canActivate(ctx)).toBe(true);
-    expect(mockPrisma.setTenantContext).not.toHaveBeenCalled();
+    expect(guard.canActivate(ctx)).toBe(true);
   });
 
-  it('authenticated request — sets tenant context and returns true', async () => {
+  it('authenticated request — binds tenant context and returns true', () => {
     mockReflector.getAllAndOverride.mockReturnValue(false);
-    const ctx = buildContext({ tenantId: 'tenant-uuid-1' });
-    expect(await guard.canActivate(ctx)).toBe(true);
-    expect(mockPrisma.setTenantContext).toHaveBeenCalledWith('tenant-uuid-1');
+    const ctx = buildContext({ tenantId: TENANT_ID });
+    expect(guard.canActivate(ctx)).toBe(true);
+    expect(currentTenantId()).toBe(TENANT_ID);
   });
 
-  it('request without tenantId (no user) — returns false', async () => {
+  it('request without tenantId (no user) — returns false', () => {
     mockReflector.getAllAndOverride.mockReturnValue(false);
     const ctx = buildContext(null);
-    expect(await guard.canActivate(ctx)).toBe(false);
+    expect(guard.canActivate(ctx)).toBe(false);
+  });
+
+  it('non-UUID tenantId — returns false (no injection into RLS context)', () => {
+    mockReflector.getAllAndOverride.mockReturnValue(false);
+    const ctx = buildContext({ tenantId: "x'; DROP TABLE users; --" });
+    expect(guard.canActivate(ctx)).toBe(false);
   });
 });
 
@@ -65,10 +70,7 @@ describe('RbacGuard', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     const module = await Test.createTestingModule({
-      providers: [
-        RbacGuard,
-        { provide: Reflector, useValue: mockReflector },
-      ],
+      providers: [RbacGuard, { provide: Reflector, useValue: mockReflector }],
     }).compile();
     guard = module.get(RbacGuard);
   });
@@ -81,7 +83,10 @@ describe('RbacGuard', () => {
 
   it('user has required permission — returns true', () => {
     mockReflector.getAllAndOverride.mockReturnValue(['po:create']);
-    const ctx = buildContext({ permissions: ['po:create', 'po:read'], isSuperAdmin: false });
+    const ctx = buildContext({
+      permissions: ['po:create', 'po:read'],
+      isSuperAdmin: false,
+    });
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
