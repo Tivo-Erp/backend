@@ -5,6 +5,7 @@ import {
 } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from '@fastify/helmet';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
@@ -29,6 +30,11 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(new AllExceptionsFilter());
+
+  // Socket.IO for realtime notifications (NTF-001 / ADR-014). The IoAdapter is
+  // required under the Fastify adapter; the gateway attaches a Redis adapter at
+  // runtime when REDIS_URL is set (see NotificationGateway.afterInit).
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   const isProduction = process.env.NODE_ENV === 'production';
 

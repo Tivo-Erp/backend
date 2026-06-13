@@ -191,6 +191,14 @@ export const CHART_OF_ACCOUNTS_VN: SeedAccount[] = [
     normalBalance: 'credit',
     isGroup: false,
   },
+  // Other income (Loại 7) — e.g. gain on asset disposal
+  {
+    accountCode: '711',
+    accountName: 'Thu nhập khác',
+    accountType: 'revenue',
+    normalBalance: 'credit',
+    isGroup: false,
+  },
   // Expenses (Loại 6)
   {
     accountCode: '621',
@@ -230,6 +238,14 @@ export const CHART_OF_ACCOUNTS_VN: SeedAccount[] = [
   {
     accountCode: '642',
     accountName: 'Chi phí quản lý doanh nghiệp',
+    accountType: 'expense',
+    normalBalance: 'debit',
+    isGroup: false,
+  },
+  // Other expenses (Loại 8) — e.g. loss on asset disposal
+  {
+    accountCode: '811',
+    accountName: 'Chi phí khác',
     accountType: 'expense',
     normalBalance: 'debit',
     isGroup: false,

@@ -1,0 +1,11 @@
+import { Module } from '@nestjs/common';
+import { DocumentSequenceService } from '../../infra/sequence/document-sequence.service.js';
+import { DeliveryNoteController } from './controllers/delivery-note.controller.js';
+import { DeliveryNoteService } from './services/delivery-note.service.js';
+
+@Module({
+  controllers: [DeliveryNoteController],
+  providers: [DeliveryNoteService, DocumentSequenceService],
+  exports: [DeliveryNoteService],
+})
+export class DelModule {}

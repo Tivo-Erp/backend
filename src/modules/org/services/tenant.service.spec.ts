@@ -23,6 +23,7 @@ const mockTx = {
   subscription: { create: jest.fn() },
   documentSequence: { createMany: jest.fn() },
   chartOfAccount: { createMany: jest.fn() },
+  pipelineStage: { createMany: jest.fn() },
 };
 
 const mockPrisma = {
@@ -82,11 +83,11 @@ describe('TenantService', () => {
       expect(mockTx.rolePermission.createMany).toHaveBeenCalledWith({
         data: [{ roleId: 'role-owner', permissionId: 'perm-1' }],
       });
-      // 13 document sequences
+      // 14 document sequences (Batch 4 added 'QC')
       expect(mockTx.documentSequence.createMany).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.arrayContaining([expect.objectContaining({ tenantId: 'tenant-1' })]) }),
       );
-      expect(mockTx.documentSequence.createMany.mock.calls[0][0].data).toHaveLength(13);
+      expect(mockTx.documentSequence.createMany.mock.calls[0][0].data).toHaveLength(17);
     });
 
     it('duplicate slug — throws ORG_TENANT_SLUG_TAKEN (409)', async () => {

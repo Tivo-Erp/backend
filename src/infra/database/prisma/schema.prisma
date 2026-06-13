@@ -792,3 +792,694 @@ model PaymentAllocation {
   @@index([invoiceId])
   @@map("payment_allocations")
 }
+
+// ============================================================
+// MANUFACTURING (M-MFG)  — Batch 4
+// ============================================================
+
+model WorkOrder {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  woNumber         String   @db.VarChar(30)
+  itemId           String   @db.Uuid
+  bomId            String   @db.Uuid
+  warehouseId      String   @db.Uuid
+  plannedQty       Decimal  @db.Decimal(15, 4)
+  producedQty      Decimal  @default(0) @db.Decimal(15, 4)
+  rejectedQty      Decimal  @default(0) @db.Decimal(15, 4)
+  uom              String   @db.VarChar(20)
+  status           String   @default("draft") @db.VarChar(20) // draft,planned,released,in_progress,completed,closed,cancelled
+  plannedStartDate DateTime
+  plannedEndDate   DateTime
+  actualStartDate  DateTime?
+  actualEndDate    DateTime?
+  priority         Int      @default(5)
+  notes            String?  @db.Text
+  createdBy        String   @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  @@unique([tenantId, woNumber])
+  @@index([tenantId, status])
+  @@map("work_orders")
+}
+
+// ============================================================
+// QUALITY CONTROL (M-QC)  — Batch 4
+// ============================================================
+
+model QCInspection {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  inspectionNumber String   @db.VarChar(30)
+  sourceType       String   @db.VarChar(20) // grn, work_order
+  sourceId         String   @db.Uuid
+  itemId           String   @db.Uuid
+  totalQty         Decimal  @db.Decimal(15, 4)
+  acceptedQty      Decimal  @default(0) @db.Decimal(15, 4)
+  rejectedQty      Decimal  @default(0) @db.Decimal(15, 4)
+  status           String   @default("pending") @db.VarChar(20) // pending, in_progress, passed, failed, partial_pass
+  inspectorId      String?  @db.Uuid
+  inspectorNotes   String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  results QCInspectionResult[]
+
+  @@unique([tenantId, inspectionNumber])
+  @@index([tenantId, status])
+  @@map("qc_inspections")
+}
+
+model QCInspectionResult {
+  id            String   @id @default(uuid()) @db.Uuid
+  inspectionId  String   @db.Uuid
+  criterionName String   @db.VarChar(200)
+  measuredValue Decimal? @db.Decimal(10, 4)
+  passed        Boolean
+  notes         String?  @db.VarChar(500)
+
+  inspection QCInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  @@index([inspectionId])
+  @@map("qc_inspection_results")
+}
+
+model NCRReport {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  ncrNumber    String   @db.VarChar(30)
+  inspectionId String?  @db.Uuid
+  description  String   @db.Text
+  disposition  String   @db.VarChar(30) // rework, scrap, return_to_supplier, use_as_is, pending
+  assignedTo   String?  @db.Uuid
+  status       String   @default("open") @db.VarChar(20) // open, in_progress, closed
+  createdBy    String   @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, ncrNumber])
+  @@index([tenantId, status])
+  @@map("ncr_reports")
+}
+
+// ============================================================
+// HUMAN RESOURCES (M-HRM)  — Batch 4
+// ============================================================
+
+model Employee {
+  id                    String    @id @default(uuid()) @db.Uuid
+  tenantId              String    @db.Uuid
+  userId                String    @db.Uuid
+  employeeCode          String    @db.VarChar(20)
+  departmentId          String?   @db.Uuid
+  branchId              String?   @db.Uuid
+  position              String?   @db.VarChar(200)
+  joinDate              DateTime
+  status                String    @default("probation") @db.VarChar(20) // probation, active, on_leave, terminated
+  basicSalary           Decimal   @default(0) @db.Decimal(15, 2)
+  fullNameEncrypted     String    @db.Text     // PII:high
+  dateOfBirthEncrypted  String?   @db.Text     // PII:medium
+  idNumberEncrypted     String?   @db.Text     // PII:critical
+  taxCodeEncrypted      String?   @db.Text     // PII:high
+  socialInsNumEncrypted String?   @db.Text     // PII:critical
+  bankAccNumEncrypted   String?   @db.Text     // PII:critical
+  bankName              String?   @db.VarChar(200)
+  numberOfDependents    Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  leaveBalances LeaveBalance[]
+  leaveRequests LeaveRequest[]
+
+  @@unique([tenantId, employeeCode])
+  @@unique([tenantId, userId])
+  @@index([tenantId, status])
+  @@map("employees")
+}
+
+model LeaveType {
+  id           String  @id @default(uuid()) @db.Uuid
+  tenantId     String  @db.Uuid
+  code         String  @db.VarChar(20)
+  name         String  @db.VarChar(100)
+  defaultDays  Int     @default(12)
+  isPaid       Boolean @default(true)
+  requiresDoc  Boolean @default(false) // e.g., sick > 3 days
+  maxCarryOver Int     @default(5)
+
+  @@unique([tenantId, code])
+  @@map("leave_types")
+}
+
+model LeaveBalance {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @db.Uuid
+  employeeId  String  @db.Uuid
+  leaveTypeId String  @db.Uuid
+  year        Int
+  entitlement Decimal @db.Decimal(5, 1)
+  used        Decimal @default(0) @db.Decimal(5, 1)
+  carryOver   Decimal @default(0) @db.Decimal(5, 1)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  employeeId  String    @db.Uuid
+  leaveTypeId String    @db.Uuid
+  startDate   DateTime
+  endDate     DateTime
+  totalDays   Decimal   @db.Decimal(5, 1)
+  halfDay     String?   @db.VarChar(20) // full_day, morning, afternoon
+  reason      String?   @db.Text
+  status      String    @default("pending") @db.VarChar(20) // pending, approved, rejected, cancelled
+  approvedBy  String?   @db.Uuid
+  approvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, employeeId, startDate])
+  @@index([tenantId, status])
+  @@map("leave_requests")
+}
+
+model PayrollRun {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  month          Int
+  year           Int
+  status         String   @default("draft") @db.VarChar(20) // draft, approved, paid
+  totalGross     Decimal  @default(0) @db.Decimal(15, 2)
+  totalNet       Decimal  @default(0) @db.Decimal(15, 2)
+  totalInsEmp    Decimal  @default(0) @db.Decimal(15, 2)
+  totalInsEmpl   Decimal  @default(0) @db.Decimal(15, 2)
+  totalPIT       Decimal  @default(0) @db.Decimal(15, 2)
+  employeeCount  Int      @default(0)
+  journalBatchId String?  @db.Uuid
+  createdBy      String   @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lines PayrollLine[]
+
+  @@unique([tenantId, year, month])
+  @@map("payroll_runs")
+}
+
+model PayrollLine {
+  id                 String  @id @default(uuid()) @db.Uuid
+  payrollRunId       String  @db.Uuid
+  employeeId         String  @db.Uuid
+  basicSalary        Decimal @db.Decimal(15, 2)
+  allowances         Decimal @default(0) @db.Decimal(15, 2)
+  overtime           Decimal @default(0) @db.Decimal(15, 2)
+  bonuses            Decimal @default(0) @db.Decimal(15, 2)
+  grossSalary        Decimal @db.Decimal(15, 2)
+  empBHXH            Decimal @db.Decimal(15, 2)
+  empBHYT            Decimal @db.Decimal(15, 2)
+  empBHTN            Decimal @db.Decimal(15, 2)
+  personalDeduction  Decimal @db.Decimal(15, 2)
+  dependentDeduction Decimal @db.Decimal(15, 2)
+  taxableIncome      Decimal @db.Decimal(15, 2)
+  pitAmount          Decimal @db.Decimal(15, 2)
+  netSalary          Decimal @db.Decimal(15, 2)
+  emplrBHXH          Decimal @db.Decimal(15, 2)
+  emplrBHYT          Decimal @db.Decimal(15, 2)
+  emplrBHTN          Decimal @db.Decimal(15, 2)
+  totalCostToCompany Decimal @db.Decimal(15, 2)
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+
+  @@index([payrollRunId])
+  @@map("payroll_lines")
+}
+
+// ============================================================
+// WORKFLOW (M-WFL)  — Batch 4
+// ============================================================
+
+model WorkflowDefinition {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  name             String   @db.VarChar(200)
+  triggerEntity    String   @db.VarChar(50)
+  triggerEvent     String   @db.VarChar(50)
+  triggerCondition Json?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  steps     WorkflowStep[]
+  instances WorkflowInstance[]
+
+  @@index([tenantId, triggerEntity, triggerEvent])
+  @@map("workflow_definitions")
+}
+
+model WorkflowStep {
+  id           String  @id @default(uuid()) @db.Uuid
+  definitionId String  @db.Uuid
+  stepNumber   Int
+  name         String  @db.VarChar(200)
+  stepType     String  @db.VarChar(20) // approval, notification, condition, action
+  approverType String? @db.VarChar(30) // user, role, manager, department_head
+  approverId   String? @db.Uuid
+  timeoutHours Int?
+  escalationTo String? @db.Uuid
+  config       Json?
+
+  definition WorkflowDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  @@unique([definitionId, stepNumber])
+  @@map("workflow_steps")
+}
+
+model WorkflowInstance {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  definitionId String   @db.Uuid
+  entityType   String   @db.VarChar(50)
+  entityId     String   @db.Uuid
+  currentStep  Int      @default(1)
+  status       String   @default("running") @db.VarChar(20) // running, completed, rejected, cancelled, timed_out
+  requestedBy  String   @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  definition WorkflowDefinition @relation(fields: [definitionId], references: [id])
+  actions    WorkflowAction[]
+
+  @@index([tenantId, status])
+  @@map("workflow_instances")
+}
+
+model WorkflowAction {
+  id         String   @id @default(uuid()) @db.Uuid
+  instanceId String   @db.Uuid
+  stepNumber Int
+  action     String   @db.VarChar(20) // approved, rejected
+  actorId    String   @db.Uuid
+  comment    String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId])
+  @@map("workflow_actions")
+}
+
+// ============================================================
+// NOTIFICATIONS (M-NTF)  — Batch 4
+// ============================================================
+
+model Notification {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  userId     String    @db.Uuid
+  title      String    @db.VarChar(500)
+  body       String?   @db.Text
+  category   String    @db.VarChar(20) // approval, alert, info, reminder
+  entityType String?   @db.VarChar(50)
+  entityId   String?   @db.Uuid
+  actionUrl  String?   @db.Text
+  isRead     Boolean   @default(false)
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, userId, isRead])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  userId          String   @db.Uuid
+  category        String   @db.VarChar(20) // approval, alert, info, reminder
+  inAppEnabled    Boolean  @default(true)
+  emailEnabled    Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, userId, category])
+  @@map("notification_preferences")
+}
+
+// ============================================================
+// DELIVERY (M-DEL)  — Batch 5
+// ============================================================
+
+model DeliveryNote {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @db.Uuid
+  dnNumber           String    @db.VarChar(30)
+  soId               String    @db.Uuid
+  warehouseId        String    @db.Uuid
+  customerId         String    @db.Uuid
+  status               String    @default("draft") @db.VarChar(20) // draft,picking,picked,packed,out_for_delivery,delivered,failed,returned
+  shipDate             DateTime?
+  shippingAddress      String?   @db.Text
+  contactPerson        String?   @db.VarChar(200)
+  contactPhone         String?   @db.VarChar(20)
+  deliveryInstructions String?   @db.Text
+  deliveryMethod       String?   @db.VarChar(20) // self_delivery, carrier
+  driverName           String?   @db.VarChar(200)
+  driverPhone          String?   @db.VarChar(20)
+  vehiclePlate         String?   @db.VarChar(20)
+  carrierId            String?   @db.Uuid // carrier ref (M-SHP deferred — no FK yet)
+  serviceType          String?   @db.VarChar(50) // standard, express, same_day
+  packedWeightKg       Decimal?  @db.Decimal(10, 3)
+  totalPackages        Int       @default(1)
+  packingNotes         String?   @db.Text
+  failureReason        String?   @db.VarChar(50)
+  retryCount           Int       @default(0)
+  returnReason         String?   @db.VarChar(50)
+  returnWarehouseId    String?   @db.Uuid
+  podType              String?   @db.VarChar(20) // signature, photo, both, otp
+  receiverName         String?   @db.VarChar(200)
+  podSignature         String?   @db.Text // base64 signature blob (MinIO deferred)
+  podPhotoUrls         Json? // array of file URLs (MinIO deferred)
+  podNotes             String?   @db.Text
+  notes                String?   @db.Text
+  createdBy            String    @db.Uuid
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deliveredAt        DateTime?
+  deletedAt          DateTime?
+
+  lines DeliveryNoteLine[]
+
+  @@unique([tenantId, dnNumber])
+  @@index([tenantId, status])
+  @@index([tenantId, soId])
+  @@map("delivery_notes")
+}
+
+model DeliveryNoteLine {
+  id          String  @id @default(uuid()) @db.Uuid
+  dnId        String  @db.Uuid
+  soLineId    String  @db.Uuid
+  itemId      String  @db.Uuid
+  quantity    Decimal @db.Decimal(15, 4)
+  pickedQty   Decimal @default(0) @db.Decimal(15, 4)
+  uom            String  @db.VarChar(20)
+  binId          String? @db.Uuid
+  lotId          String? @db.Uuid
+  serialId       String? @db.Uuid
+  actualBinId    String? @db.Uuid
+  actualLotId    String? @db.Uuid
+  actualSerialId String? @db.Uuid
+  sortOrder      Int     @default(0)
+
+  dn DeliveryNote @relation(fields: [dnId], references: [id], onDelete: Cascade)
+
+  @@index([dnId])
+  @@map("delivery_note_lines")
+}
+
+// ============================================================
+// FIXED ASSETS (M-AST)  — Batch 5
+// ============================================================
+
+model FixedAsset {
+  id                      String    @id @default(uuid()) @db.Uuid
+  tenantId                String    @db.Uuid
+  assetCode               String    @db.VarChar(100)
+  name                    String    @db.VarChar(500)
+  accountCode             String    @db.VarChar(20) // asset GL account: 2111, 2112, 2113, 2114
+  acquisitionCost         Decimal   @db.Decimal(19, 4)
+  residualValue           Decimal   @default(0) @db.Decimal(19, 4) // salvage value
+  acquisitionDate         DateTime
+  inServiceDate           DateTime?
+  depreciationMethod      String    @db.VarChar(20) // straight_line, declining_balance
+  usefulLifeMonths        Int
+  status                  String    @default("draft") @db.VarChar(20) // draft, in_use, disposed, transferred
+  accumulatedDepreciation Decimal   @default(0) @db.Decimal(19, 4)
+  expenseAccountCode      String    @default("642") @db.VarChar(20) // GL depreciation expense (627/641/642)
+  departmentId            String?   @db.Uuid
+  branchId                String?   @db.Uuid
+  disposalDate            DateTime?
+  disposalProceeds        Decimal?  @db.Decimal(19, 4)
+  notes                   String?   @db.Text
+  createdBy               String    @db.Uuid
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  deletedAt               DateTime?
+
+  depreciationEntries AssetDepreciationEntry[]
+
+  @@unique([tenantId, assetCode])
+  @@index([tenantId, status])
+  @@map("fixed_assets")
+}
+
+model AssetDepreciationEntry {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @db.Uuid
+  assetId            String   @db.Uuid
+  year               Int
+  month              Int
+  depreciationAmount Decimal  @db.Decimal(19, 4)
+  accumulatedTotal   Decimal  @db.Decimal(19, 4)
+  journalBatchId     String?  @db.Uuid
+  createdAt          DateTime @default(now())
+
+  asset FixedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, year, month])
+  @@index([tenantId, year, month])
+  @@map("asset_depreciation_entries")
+}
+
+// ============================================================
+// CRM (M-CRM)  — Batch 5
+// ============================================================
+
+model PipelineStage {
+  id             String  @id @default(uuid()) @db.Uuid
+  tenantId       String  @db.Uuid
+  name           String  @db.VarChar(100)
+  sortOrder      Int     @default(0)
+  probabilityPct Int     @default(0)
+  isWon          Boolean @default(false)
+  isLost         Boolean @default(false)
+
+  opportunities Opportunity[]
+
+  @@unique([tenantId, name])
+  @@map("pipeline_stages")
+}
+
+model Lead {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  companyName    String    @db.VarChar(255)
+  contactName    String?   @db.VarChar(200)
+  email          String?   @db.VarChar(255)
+  phone          String?   @db.VarChar(20)
+  source         String    @db.VarChar(30) // website, referral, cold_call, exhibition, advertisement, other
+  status         String    @default("new") @db.VarChar(20) // new, contacted, qualified, disqualified, proposal_sent, negotiation, won, lost
+  score          Int       @default(0)
+  estimatedValue Decimal?  @db.Decimal(19, 4)
+  assignedTo     String?   @db.Uuid
+  customerId     String?   @db.Uuid
+  convertedAt    DateTime?
+  lostReason     String?   @db.VarChar(255)
+  notes          String?   @db.Text
+  createdBy      String    @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  opportunities Opportunity[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, assignedTo])
+  @@map("leads")
+}
+
+model Opportunity {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  name              String    @db.VarChar(255)
+  customerId        String?   @db.Uuid
+  leadId            String?   @db.Uuid
+  stageId           String    @db.Uuid
+  expectedRevenue   Decimal   @default(0) @db.Decimal(19, 4)
+  currency          String    @default("VND") @db.VarChar(3)
+  expectedCloseDate DateTime?
+  assignedTo        String?   @db.Uuid
+  status            String    @default("open") @db.VarChar(20) // open, won, lost
+  wonAt             DateTime?
+  lostReason        String?   @db.VarChar(255)
+  notes             String?   @db.Text
+  createdBy         String    @db.Uuid
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  stage PipelineStage @relation(fields: [stageId], references: [id])
+  lead  Lead?         @relation(fields: [leadId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, stageId])
+  @@map("opportunities")
+}
+
+model SupportTicket {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  ticketNumber      String    @db.VarChar(30)
+  customerId        String    @db.Uuid
+  subject           String    @db.VarChar(500)
+  description       String?   @db.Text
+  priority          String    @default("medium") @db.VarChar(20) // low, medium, high, critical
+  status            String    @default("open") @db.VarChar(20) // open, in_progress, waiting_customer, resolved, closed, reopened
+  category          String?   @db.VarChar(50)
+  assignedTo        String?   @db.Uuid
+  slaDueAt          DateTime?
+  firstResponseAt   DateTime?
+  resolvedAt        DateTime?
+  satisfactionScore Int?
+  createdBy         String    @db.Uuid
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  comments TicketComment[]
+
+  @@unique([tenantId, ticketNumber])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@map("support_tickets")
+}
+
+model TicketComment {
+  id         String   @id @default(uuid()) @db.Uuid
+  ticketId   String   @db.Uuid
+  body       String   @db.Text
+  isInternal Boolean  @default(false)
+  createdBy  String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_comments")
+}
+
+// ============================================================
+// PROJECT MANAGEMENT (M-PMO)  — Batch 5
+// ============================================================
+
+model Project {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  code          String    @db.VarChar(30)
+  name          String    @db.VarChar(255)
+  description   String?   @db.Text
+  customerId    String?   @db.Uuid
+  managerId     String?   @db.Uuid
+  branchId      String?   @db.Uuid
+  status        String    @default("planning") @db.VarChar(20) // planning, active, on_hold, completed, cancelled
+  priority      String    @default("normal") @db.VarChar(20) // normal, high, urgent
+  startDate     DateTime
+  targetEndDate DateTime?
+  actualEndDate DateTime?
+  budget        Decimal   @default(0) @db.Decimal(19, 4)
+  currency      String    @default("VND") @db.VarChar(3)
+  progressPct   Int       @default(0)
+  createdBy     String    @db.Uuid
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  members    ProjectMember[]
+  tasks      ProjectTask[]
+  milestones Milestone[]
+  timesheets Timesheet[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @db.Uuid
+  userId    String   @db.Uuid
+  role      String   @default("member") @db.VarChar(20) // manager, member, viewer
+  addedAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model ProjectTask {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  projectId      String    @db.Uuid
+  parentId       String?   @db.Uuid
+  title          String    @db.VarChar(500)
+  description    String?   @db.Text
+  assignedTo     String?   @db.Uuid
+  status         String    @default("backlog") @db.VarChar(20) // backlog, todo, in_progress, review, done
+  priority       String    @default("medium") @db.VarChar(20) // low, medium, high, critical
+  startDate      DateTime?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  estimatedHours Decimal?  @db.Decimal(8, 2)
+  actualHours    Decimal?  @db.Decimal(8, 2)
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId, status])
+  @@map("project_tasks")
+}
+
+model Milestone {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  projectId   String    @db.Uuid
+  name        String    @db.VarChar(255)
+  dueDate     DateTime
+  completedAt DateTime?
+  sortOrder   Int       @default(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId])
+  @@map("milestones")
+}
+
+model Timesheet {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  employeeId  String    @db.Uuid
+  projectId   String    @db.Uuid
+  taskId      String?   @db.Uuid
+  logDate     DateTime  @db.Date
+  hours       Decimal   @db.Decimal(5, 2)
+  description String?   @db.Text
+  billable    Boolean   @default(true)
+  status      String    @default("draft") @db.VarChar(20) // draft, submitted, approved, rejected
+  approvedBy  String?   @db.Uuid
+  approvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@index([tenantId, employeeId, logDate])
+  @@index([tenantId, projectId])
+  @@map("timesheets")
+}

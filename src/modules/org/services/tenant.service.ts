@@ -10,7 +10,19 @@ import { BusinessException } from '../../../common/exceptions/business.exception
 import { CHART_OF_ACCOUNTS_VN } from '../../fin/data/chart-of-accounts-vn.js';
 
 const DEFAULT_DOC_TYPES = [
-  'PO', 'PR', 'SO', 'SQ', 'INV', 'CN', 'DN', 'GRN', 'WO', 'NCR', 'PAY', 'JB', 'TKT',
+  'PO', 'PR', 'SO', 'SQ', 'INV', 'CN', 'DN', 'GRN', 'WO', 'QC', 'NCR', 'PAY', 'JB', 'TKT',
+  'CUS', 'PRJ', 'AST',
+];
+
+/** Default CRM sales pipeline stages seeded per tenant (SRS_07 §1.1). */
+const DEFAULT_PIPELINE_STAGES = [
+  { name: 'New', sortOrder: 1, probabilityPct: 0, isWon: false, isLost: false },
+  { name: 'Contacted', sortOrder: 2, probabilityPct: 20, isWon: false, isLost: false },
+  { name: 'Qualified', sortOrder: 3, probabilityPct: 40, isWon: false, isLost: false },
+  { name: 'Proposal', sortOrder: 4, probabilityPct: 60, isWon: false, isLost: false },
+  { name: 'Negotiation', sortOrder: 5, probabilityPct: 80, isWon: false, isLost: false },
+  { name: 'Won', sortOrder: 6, probabilityPct: 100, isWon: true, isLost: false },
+  { name: 'Lost', sortOrder: 7, probabilityPct: 0, isWon: false, isLost: true },
 ];
 
 @Injectable()
@@ -143,6 +155,18 @@ export class TenantService {
           normalBalance: a.normalBalance,
           isGroup: a.isGroup,
           parentCode: a.parentCode ?? null,
+        })),
+      });
+
+      // CRM-001: seed the default sales pipeline stages for the new tenant
+      await tx.pipelineStage.createMany({
+        data: DEFAULT_PIPELINE_STAGES.map((s) => ({
+          tenantId: tenant.id,
+          name: s.name,
+          sortOrder: s.sortOrder,
+          probabilityPct: s.probabilityPct,
+          isWon: s.isWon,
+          isLost: s.isLost,
         })),
       });
 

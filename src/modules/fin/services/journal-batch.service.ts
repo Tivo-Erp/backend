@@ -40,8 +40,8 @@ export interface InternalJournalInput {
   entries: {
     accountCode: string;
     description?: string;
-    debitAmount: number;
-    creditAmount: number;
+    debitAmount: number | Prisma.Decimal;
+    creditAmount: number | Prisma.Decimal;
   }[];
 }
 
@@ -103,22 +103,30 @@ export class JournalBatchService {
   }
 
   /** Validates lines and returns Decimal totals (rounded to 2dp). */
-  private validateEntries(entries: JournalEntryLineDto[]) {
+  private validateEntries(entries: InternalJournalInput['entries'] | JournalEntryLineDto[]) {
     if (!entries || entries.length < 2) {
       throw new BadRequestException('FIN_JOURNAL_MIN_TWO_ENTRIES');
     }
-    for (const e of entries) {
-      if (e.debitAmount > 0 && e.creditAmount > 0) {
+    // Normalize the union (DTO lines vs internal lines) to one amount-bearing
+    // shape so Decimal reductions type-check cleanly.
+    const rows = entries as Array<{
+      debitAmount: number | Prisma.Decimal;
+      creditAmount: number | Prisma.Decimal;
+    }>;
+    for (const e of rows) {
+      const debit = dec(e.debitAmount);
+      const credit = dec(e.creditAmount);
+      if (debit.gt(0) && credit.gt(0)) {
         throw new BadRequestException('FIN_JOURNAL_LINE_BOTH_AMOUNTS');
       }
-      if (e.debitAmount === 0 && e.creditAmount === 0) {
+      if (debit.isZero() && credit.isZero()) {
         throw new BadRequestException('FIN_JOURNAL_LINE_ZERO_AMOUNT');
       }
     }
-    const totalDebit = entries
+    const totalDebit = rows
       .reduce((s, e) => s.add(dec(e.debitAmount)), dec(0))
       .toDecimalPlaces(2);
-    const totalCredit = entries
+    const totalCredit = rows
       .reduce((s, e) => s.add(dec(e.creditAmount)), dec(0))
       .toDecimalPlaces(2);
     if (!totalDebit.equals(totalCredit)) {

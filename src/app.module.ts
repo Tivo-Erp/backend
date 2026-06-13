@@ -19,6 +19,14 @@ import { InvModule } from './modules/inv/inv.module.js';
 import { PurModule } from './modules/pur/pur.module.js';
 import { SalModule } from './modules/sal/sal.module.js';
 import { FinModule } from './modules/fin/fin.module.js';
+import { MfgModule } from './modules/mfg/mfg.module.js';
+import { QcModule } from './modules/qc/qc.module.js';
+import { HrmModule } from './modules/hrm/hrm.module.js';
+import { WflModule } from './modules/wfl/wfl.module.js';
+import { NtfModule } from './modules/ntf/ntf.module.js';
+import { DelModule } from './modules/del/del.module.js';
+import { CrmModule } from './modules/crm/crm.module.js';
+import { PmoModule } from './modules/pmo/pmo.module.js';
 
 @Module({
   imports: [
@@ -45,6 +53,14 @@ import { FinModule } from './modules/fin/fin.module.js';
     PurModule,
     SalModule,
     FinModule,
+    MfgModule,
+    QcModule,
+    HrmModule,
+    WflModule,
+    NtfModule,
+    DelModule,
+    CrmModule,
+    PmoModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
