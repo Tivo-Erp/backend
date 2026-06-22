@@ -68,21 +68,24 @@ async function bootstrap() {
         'JWT-Auth',
       );
 
-    // Server list for the "Try it out" feature. Behind a WAF / reverse proxy
-    // the docs are served at a public HTTPS domain, but the browser must send
-    // requests to that same origin — not localhost. We list, in priority order:
-    //   1. A relative server ("/") so Swagger UI always targets whatever origin
-    //      is serving the docs page (works for any WAF/proxy domain, no config).
-    //   2. An explicit public URL when SWAGGER_SERVER_URL is set (nice label).
-    //   3. localhost for direct local development.
-    builder.addServer('/', 'Current host (auto / behind proxy)');
+    // Server list for the "Try it out" feature. The FIRST entry is the default
+    // Swagger UI targets, so order matters. Behind a WAF / reverse proxy the docs
+    // are served at a public HTTPS domain and the browser must hit that same
+    // origin — never localhost (mixed-content + CORS from an HTTPS page).
+    //   1. The explicit public URL (SWAGGER_SERVER_URL) — default when set.
+    //   2. A relative "/" that auto-follows whatever origin serves the docs.
+    //   3. localhost, ONLY in non-production (omitted in prod so the docs can
+    //      never default to an unreachable http://localhost).
     if (process.env.SWAGGER_SERVER_URL) {
       builder.addServer(process.env.SWAGGER_SERVER_URL, 'Public API');
     }
-    builder.addServer(
-      `http://localhost:${process.env.PORT || 3000}`,
-      'Local Development',
-    );
+    builder.addServer('/', 'Current host (auto / behind proxy)');
+    if (!isProduction) {
+      builder.addServer(
+        `http://localhost:${process.env.PORT || 3000}`,
+        'Local Development',
+      );
+    }
 
     const swaggerConfig = builder.build();
 
@@ -97,10 +100,13 @@ async function bootstrap() {
   }
 
   // In production, allowed origins must be listed explicitly via CORS_ORIGINS
-  // (comma-separated); otherwise cross-origin requests are refused.
+  // (comma-separated); otherwise cross-origin requests are refused. Accept ';'
+  // as a separator too — a common mistake — and drop empty entries.
   app.enableCors({
     origin: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
+      ? process.env.CORS_ORIGINS.split(/[,;]/)
+          .map((o) => o.trim())
+          .filter(Boolean)
       : !isProduction,
     credentials: true,
   });

@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Swagger "Try it out" targeted `http://localhost:3000` from the public HTTPS
+  docs (mixed-content / CORS → "Failed to fetch"). The public `SWAGGER_SERVER_URL`
+  is now the first/default server, and the `localhost` server entry is omitted in
+  production so the docs default to the real domain.
+- `CORS_ORIGINS` now also accepts `;` as a separator (not just `,`) and drops
+  empty entries, avoiding a silent single-origin misparse.
 - Worker boot crash — `Nest can't resolve dependencies of ChartOfAccountService
   (..., CacheService)`. The worker process bootstraps `WorkerModule`, which never
   imported the `@Global` `CacheModule` (a global module must still be imported
