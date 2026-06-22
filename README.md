@@ -236,6 +236,8 @@ graph TD
 | `npm run start:dev` | Start in watch mode (development) |
 | `npm run start:debug` | Start in debug + watch mode |
 | `npm run start:prod` | Start production server (`node dist/main`) |
+| `npm run start:worker` | Start background worker (BullMQ jobs + cron + event consumers) |
+| `npm run start:worker:dev` | Start worker in watch mode (development) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm run lint` | Run ESLint with auto-fix |
 | `npm run format` | Run Prettier |
@@ -296,28 +298,33 @@ NTF:      /api/v1/ntf/notifications/*
 src/
 ├── main.ts                      # Fastify bootstrap + Swagger setup
 ├── app.module.ts                # Root module
-├── worker.ts                    # BullMQ worker entry (placeholder)
+├── worker.ts                    # Background worker entry (BullMQ jobs + cron + event consumers)
 ├── common/                      # Shared kernel
 │   ├── decorators/              # @CurrentTenant, @CurrentUser, @Public, @RequirePermissions
 │   ├── dto/                     # PaginationQueryDto, ErrorResponseDto
 │   ├── exceptions/              # BusinessException
 │   ├── filters/                 # AllExceptionsFilter
 │   ├── guards/                  # JwtAuthGuard, TenantGuard, RbacGuard
-│   ├── interceptors/            # LoggingInterceptor, TransformInterceptor
+│   ├── health/                  # /health, /health/ready (Terminus)
+│   ├── interceptors/            # AuditLogInterceptor
 │   ├── middleware/              # CorrelationIdMiddleware
-│   └── utils/                   # FieldSelector (sparse fieldsets)
+│   └── utils/                   # FieldSelector, PII crypto (AES-256-GCM), TOTP
 ├── config/
 │   └── app.config.ts            # ConfigModule registration
 ├── infra/
-│   ├── database/
-│   │   ├── prisma.service.ts    # PrismaService (onModuleInit, forTenant)
-│   │   └── prisma/
-│   │       ├── schema.prisma    # Single source of truth for DB schema
-│   │       └── seed.ts          # Seed script
-│   └── sequence/
-│       └── document-sequence.service.ts
+│   ├── database/                # PrismaService (onModuleInit, forTenant) + schema + seed
+│   ├── cache/                   # Redis cache + Redis-backed throttler storage
+│   ├── redis/                   # Shared Redis connection
+│   ├── queue/                   # BullMQ producers + processors (email, cron)
+│   ├── events/                  # Transactional outbox + RabbitMQ publisher/consumer
+│   ├── email/                   # Transactional email (Resend) + templates
+│   ├── storage/                 # S3 / MinIO presigned uploads
+│   ├── observability/           # Prometheus metrics + Sentry error tracking
+│   ├── olap/                    # DuckDB analytics store (BI ETL target)
+│   └── sequence/                # Per-tenant document number sequences
 ├── modules/                     # Domain modules (1:1 BRD)
-│   ├── auth/                    # M-UAM: Authentication
+│   ├── auth/                    # Authentication (JWT RS256, MFA/TOTP, lockout)
+│   ├── uam/                     # M-UAM: Users, Roles, Permissions, Audit Log
 │   ├── org/                     # M-ORG: Tenant + Branch
 │   ├── mat/                     # M-MAT: Master Data (Items, BOM)
 │   ├── wms/                     # M-WMS: Warehouse, Zone, Bin
@@ -328,8 +335,15 @@ src/
 │   ├── mfg/                     # M-MFG: Manufacturing
 │   ├── qc/                      # M-QC: Quality Control
 │   ├── hrm/                     # M-HRM: Human Resources
-│   ├── wfl/                     # M-WFL: Workflow
-│   └── ntf/                     # M-NTF: Notifications
+│   ├── del/                     # M-DEL: Delivery Notes
+│   ├── shp/                     # M-SHP: Shipping (carriers, shipments, tracking)
+│   ├── crm/                     # M-CRM: Leads, Opportunities, Tickets
+│   ├── pmo/                     # M-PMO: Projects, Tasks, Timesheets
+│   ├── bi/                      # M-BI: Dashboards / OLAP analytics
+│   ├── wfl/                     # M-WFL: Workflow engine
+│   ├── ntf/                     # M-NTF: Notifications (realtime + email)
+│   ├── files/                   # File upload presign endpoints
+│   └── search/                  # Cross-module search
 └── keys/                        # RS256 key pair (gitignored)
 ```
 

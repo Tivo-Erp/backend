@@ -49,14 +49,19 @@ export class EmployeeController {
   @RequirePermissions('hrm:employee:create')
   @ApiOperation({ summary: 'Onboard an employee (PII encrypted at rest)' })
   @ApiResponse({ status: 201, description: 'Employee created' })
-  @ApiResponse({ status: 409, description: 'Employee code / user already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Employee code / user already exists',
+  })
   create(@CurrentTenant() tenantId: string, @Body() dto: CreateEmployeeDto) {
     return this.service.create(tenantId, dto);
   }
 
   @Get()
   @RequirePermissions('hrm:employee:read')
-  @ApiOperation({ summary: 'List employees (PII masked unless read_pii granted)' })
+  @ApiOperation({
+    summary: 'List employees (PII masked unless read_pii granted)',
+  })
   @ApiQuery({
     name: 'fields',
     required: false,
@@ -73,7 +78,9 @@ export class EmployeeController {
 
   @Get(':id')
   @RequirePermissions('hrm:employee:read')
-  @ApiOperation({ summary: 'Get an employee (PII masked unless read_pii granted)' })
+  @ApiOperation({
+    summary: 'Get an employee (PII masked unless read_pii granted)',
+  })
   @ApiQuery({
     name: 'fields',
     required: false,
@@ -87,7 +94,13 @@ export class EmployeeController {
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: FieldsQueryDto,
   ) {
-    return this.service.findOne(tenantId, id, roles, this.canReadPii(user), query.fields);
+    return this.service.findOne(
+      tenantId,
+      id,
+      roles,
+      this.canReadPii(user),
+      query.fields,
+    );
   }
 
   @Patch(':id')

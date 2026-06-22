@@ -30,11 +30,11 @@ describe('WarehouseService', () => {
   let service: WarehouseService;
   let repo: ReturnType<typeof mockRepo>;
 
-  const tenantId    = 'tenant-uuid';
+  const tenantId = 'tenant-uuid';
   const warehouseId = 'wh-uuid';
-  const zoneId      = 'zone-uuid';
-  const binId       = 'bin-uuid';
-  const roles       = ['admin'];
+  const zoneId = 'zone-uuid';
+  const binId = 'bin-uuid';
+  const roles = ['admin'];
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -45,7 +45,7 @@ describe('WarehouseService', () => {
     }).compile();
 
     service = module.get(WarehouseService);
-    repo    = module.get(WarehouseRepository);
+    repo = module.get(WarehouseRepository);
   });
 
   // ── createWarehouse ───────────────────────────────────────────
@@ -63,7 +63,9 @@ describe('WarehouseService', () => {
 
     it('throws 409 when code already exists', async () => {
       repo.findWarehouseByCode.mockResolvedValue({ id: 'other' });
-      await expect(service.createWarehouse(tenantId, dto)).rejects.toThrow(ConflictException);
+      await expect(service.createWarehouse(tenantId, dto)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -71,9 +73,14 @@ describe('WarehouseService', () => {
 
   describe('findAllWarehouses', () => {
     it('returns list with sparse fieldsets applied', async () => {
-      repo.findAllWarehouses.mockResolvedValue([{ id: warehouseId, code: 'WH-HN' }]);
+      repo.findAllWarehouses.mockResolvedValue([
+        { id: warehouseId, code: 'WH-HN' },
+      ]);
       const result = await service.findAllWarehouses(tenantId, roles);
-      expect(repo.findAllWarehouses).toHaveBeenCalledWith(tenantId, expect.any(Object));
+      expect(repo.findAllWarehouses).toHaveBeenCalledWith(
+        tenantId,
+        expect.any(Object),
+      );
       expect(result).toHaveLength(1);
     });
   });
@@ -89,7 +96,9 @@ describe('WarehouseService', () => {
 
     it('throws 404 when not found', async () => {
       repo.findWarehouseById.mockResolvedValue(null);
-      await expect(service.findWarehouseById(tenantId, warehouseId)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.findWarehouseById(tenantId, warehouseId),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -108,12 +117,18 @@ describe('WarehouseService', () => {
       repo.assertWarehouseOwnership.mockResolvedValue({ id: warehouseId });
       repo.hasStock.mockResolvedValue({ id: 'balance-1' });
 
-      await expect(service.deleteWarehouse(tenantId, warehouseId)).rejects.toThrow(ConflictException);
+      await expect(
+        service.deleteWarehouse(tenantId, warehouseId),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('throws 404 when warehouse not found', async () => {
-      repo.assertWarehouseOwnership.mockRejectedValue(new NotFoundException('WMS_WAREHOUSE_NOT_FOUND'));
-      await expect(service.deleteWarehouse(tenantId, warehouseId)).rejects.toThrow(NotFoundException);
+      repo.assertWarehouseOwnership.mockRejectedValue(
+        new NotFoundException('WMS_WAREHOUSE_NOT_FOUND'),
+      );
+      await expect(
+        service.deleteWarehouse(tenantId, warehouseId),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -135,7 +150,9 @@ describe('WarehouseService', () => {
       repo.assertWarehouseOwnership.mockResolvedValue({ id: warehouseId });
       repo.findZoneByCode.mockResolvedValue({ id: 'other' });
 
-      await expect(service.createZone(tenantId, warehouseId, dto)).rejects.toThrow(ConflictException);
+      await expect(
+        service.createZone(tenantId, warehouseId, dto),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -150,7 +167,12 @@ describe('WarehouseService', () => {
       repo.findBinByBarcode.mockResolvedValue(null);
       repo.createBin.mockResolvedValue({ id: binId, ...dto });
 
-      const result = await service.createBin(tenantId, warehouseId, zoneId, dto);
+      const result = await service.createBin(
+        tenantId,
+        warehouseId,
+        zoneId,
+        dto,
+      );
       expect(result.id).toBe(binId);
     });
 
@@ -159,7 +181,9 @@ describe('WarehouseService', () => {
       repo.assertZoneOwnership.mockResolvedValue({ id: zoneId });
       repo.findBinByBarcode.mockResolvedValue({ id: 'other' });
 
-      await expect(service.createBin(tenantId, warehouseId, zoneId, dto)).rejects.toThrow(ConflictException);
+      await expect(
+        service.createBin(tenantId, warehouseId, zoneId, dto),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -180,7 +204,9 @@ describe('WarehouseService', () => {
       repo.assertZoneOwnership.mockResolvedValue({ id: zoneId });
       repo.findBinById.mockResolvedValue(null);
 
-      await expect(service.deleteBin(tenantId, warehouseId, zoneId, binId)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.deleteBin(tenantId, warehouseId, zoneId, binId),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -24,6 +24,55 @@
 # ⚠️  NEVER run `down -v` on production — it deletes all volumes/data!
 # ──────────────────────────────────────────────────────────────
 
+# ─── Shared app/worker environment ───────────────────────────
+# Forwarded from .env.prod (see .env.prod.example for the full documented list).
+# `${VAR:-}` → optional (feature self-disables when empty);
+# `${VAR:?...}` → required, compose fails loudly if missing.
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://${POSTGRES_USER:-erp_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp_prod}
+  REDIS_URL: redis://redis:6379
+  JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
+  JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
+  JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-3600}
+  JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-604800}
+  AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-5}
+  AUTH_LOCK_DURATION_SEC: ${AUTH_LOCK_DURATION_SEC:-1800}
+  # REQUIRED — HRM PII + MFA secrets are AES-256-GCM encrypted with this key.
+  PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?PII_ENCRYPTION_KEY is required in .env.prod (min 16 chars)}
+  # Hardening / CORS / Swagger
+  CORS_ORIGINS: ${CORS_ORIGINS:-}
+  SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+  APP_BASE_URL: ${APP_BASE_URL:-}
+  # Cache / cron (Batch 6)
+  CACHE_ENABLED: ${CACHE_ENABLED:-true}
+  CACHE_TTL_SEC: ${CACHE_TTL_SEC:-60}
+  CRON_ENABLED: ${CRON_ENABLED:-true}
+  # RabbitMQ domain-event bus (empty = events stay buffered in the outbox)
+  RABBITMQ_URL: ${RABBITMQ_URL:-}
+  RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-erp.events}
+  # MinIO / S3 object storage (empty endpoint = file endpoints return 503)
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  S3_PORT: ${S3_PORT:-443}
+  S3_USE_SSL: ${S3_USE_SSL:-true}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+  S3_BUCKET: ${S3_BUCKET:-erp-files}
+  S3_PRESIGN_TTL_SEC: ${S3_PRESIGN_TTL_SEC:-300}
+  # Transactional email via Resend (empty = emails are logged, not sent)
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  EMAIL_FROM: ${EMAIL_FROM:-}
+  # Observability
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Auth hardening (SEC-001)
+  MFA_ISSUER: ${MFA_ISSUER:-ERP}
+  PASSWORD_RESET_TTL_SEC: ${PASSWORD_RESET_TTL_SEC:-1800}
+  EMAIL_VERIFY_TTL_SEC: ${EMAIL_VERIFY_TTL_SEC:-86400}
+  MFA_CHALLENGE_TTL_SEC: ${MFA_CHALLENGE_TTL_SEC:-300}
+
 services:
   # ─── Application ─────────────────────────────────────────────
   app:
@@ -36,16 +85,15 @@ services:
     ports:
       - "127.0.0.1:${PORT:-3000}:3000"
     environment:
-      NODE_ENV: production
+      <<: *app-env
       PORT: 3000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-erp_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp_prod}
-      REDIS_URL: redis://redis:6379
-      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt_private_key
-      JWT_PUBLIC_KEY_PATH: /run/secrets/jwt_public_key
-      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-3600}
-      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-604800}
-      AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-5}
-      AUTH_LOCK_DURATION_SEC: ${AUTH_LOCK_DURATION_SEC:-1800}
+    healthcheck:
+      # node:22-alpine ships busybox wget — no curl needed.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/health/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     secrets:
       - jwt_private_key
       - jwt_public_key
@@ -53,6 +101,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - erp-network
@@ -71,6 +121,81 @@ services:
         reservations:
           memory: 256M
           cpus: "0.5"
+
+  # ─── Background Worker (INF-001) ─────────────────────────────
+  # Runs BullMQ processors + cron schedulers + outbox relay. Without it,
+  # background jobs and domain events are never processed. Run EXACTLY ONE.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: erp-backend:latest
+    container_name: erp-worker
+    restart: unless-stopped
+    # App container owns `prisma migrate deploy`; worker just boots the process.
+    command: ["node", "dist/worker.js"]
+    environment:
+      <<: *app-env
+    healthcheck:
+      # No HTTP listener — a simple process check is enough.
+      test: ["CMD-SHELL", "pgrep -f 'dist/worker' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - erp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+          cpus: "0.25"
+
+  # ─── RabbitMQ (INF-002) ──────────────────────────────────────
+  # Domain-event bus. Internal only — no host ports exposed.
+  # Set RABBITMQ_URL=amqp://erp:<RABBITMQ_DEFAULT_PASS>@rabbitmq:5672 in .env.prod.
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: erp-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-erp}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required in .env.prod}
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - erp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+    # AMQP (5672) and management UI (15672) NOT exposed to host.
+    # Management UI if needed: docker exec or an SSH tunnel + temporary port map.
 
   # ─── PostgreSQL ──────────────────────────────────────────────
   postgres:
@@ -156,6 +281,8 @@ volumes:
   pgdata:
     driver: local
   redisdata:
+    driver: local
+  rabbitmqdata:
     driver: local
 
 # ─── Networks ────────────────────────────────────────────────

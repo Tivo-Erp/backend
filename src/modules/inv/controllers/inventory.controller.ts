@@ -49,7 +49,11 @@ export class InventoryController {
   @Get('balances')
   @RequirePermissions('inv:stock:read')
   @ApiOperation({ summary: 'Query current stock balances with filters' })
-  @ApiQuery({ name: 'fields', required: false, description: FieldSelector.describeForSwagger(BALANCE_FIELD_CONFIG) })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: FieldSelector.describeForSwagger(BALANCE_FIELD_CONFIG),
+  })
   @ApiResponse({ status: 200, description: 'Paginated stock balances' })
   findBalances(
     @CurrentTenant() tenantId: string,
@@ -64,7 +68,11 @@ export class InventoryController {
   @Get('movements')
   @RequirePermissions('inv:movement:read')
   @ApiOperation({ summary: 'View stock movement history with date range' })
-  @ApiQuery({ name: 'fields', required: false, description: FieldSelector.describeForSwagger(MOVEMENT_FIELD_CONFIG) })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: FieldSelector.describeForSwagger(MOVEMENT_FIELD_CONFIG),
+  })
   @ApiResponse({ status: 200, description: 'Paginated movement history' })
   findMovements(
     @CurrentTenant() tenantId: string,
@@ -72,7 +80,12 @@ export class InventoryController {
     @Query() query: MovementQueryDto,
     @Query() fieldsQuery: PaginatedFieldsQueryDto,
   ) {
-    return this.inventoryService.findMovements(tenantId, query, roles, fieldsQuery.fields);
+    return this.inventoryService.findMovements(
+      tenantId,
+      query,
+      roles,
+      fieldsQuery.fields,
+    );
   }
 
   // ── INV-002: Stock Adjustment ─────────────────────────────────
@@ -80,7 +93,9 @@ export class InventoryController {
   @Post('adjustments')
   @RequirePermissions('inv:stock:adjust')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Manual stock adjustment (count variance, damage, initial stock)' })
+  @ApiOperation({
+    summary: 'Manual stock adjustment (count variance, damage, initial stock)',
+  })
   @ApiResponse({ status: 200, description: 'Adjustment applied' })
   @ApiResponse({ status: 400, description: 'Negative stock or lot required' })
   @ApiResponse({ status: 404, description: 'Warehouse or item not found' })
@@ -99,7 +114,10 @@ export class InventoryController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Transfer stock between warehouses' })
   @ApiResponse({ status: 200, description: 'Transfer completed' })
-  @ApiResponse({ status: 400, description: 'Same warehouse or insufficient stock' })
+  @ApiResponse({
+    status: 400,
+    description: 'Same warehouse or insufficient stock',
+  })
   @ApiResponse({ status: 404, description: 'Warehouse not found' })
   createTransfer(
     @CurrentTenant() tenantId: string,

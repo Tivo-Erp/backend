@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/index.js';
-import { JwtPayload } from '../../modules/auth/interfaces/jwt-payload.interface.js';
 import { BusinessException } from '../exceptions/business.exception.js';
+import type { AuthenticatedRequest } from '../types/authenticated-request.js';
 
 @Injectable()
 export class RbacGuard implements CanActivate {
@@ -21,8 +21,8 @@ export class RbacGuard implements CanActivate {
 
     if (!requiredPermissions || requiredPermissions.length === 0) return true;
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as JwtPayload;
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const user = request.user;
 
     if (user?.isSuperAdmin) return true;
 

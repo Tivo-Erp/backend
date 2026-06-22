@@ -7,6 +7,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { DocumentSequenceService } from '../../../infra/sequence/document-sequence.service.js';
+import { OutboxService } from '../../../infra/events/outbox.service.js';
+import { EVENT } from '../../../infra/events/event-catalog.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { safeSortBy } from '../../../common/utils/sort.util.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
@@ -47,6 +49,7 @@ export class SalesOrderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sequences: DocumentSequenceService,
+    private readonly outbox: OutboxService,
   ) {}
 
   // ── SAL-001: Create SO ────────────────────────────────────────
@@ -222,6 +225,7 @@ export class SalesOrderService {
       // (documented contract — see CreateCustomerDto.creditLimit).
       const grandTotal = new Prisma.Decimal(so.grandTotal);
       const creditLimit = new Prisma.Decimal(customer.creditLimit);
+      let confirmed = true;
 
       if (creditLimit.lte(0)) {
         // Unlimited credit — plain increment, never goes pending_approval.
@@ -247,7 +251,27 @@ export class SalesOrderService {
             where: { id },
             data: { status: 'pending_approval' },
           });
+          confirmed = false;
         }
+      }
+
+      // INF-002: emit sales.so.confirmed atomically with the status flip —
+      // only when the order really confirmed (not downgraded to
+      // pending_approval by the credit check).
+      if (confirmed) {
+        await this.outbox.record(tx, {
+          tenantId,
+          aggregateType: 'sales_order',
+          aggregateId: so.id,
+          eventType: EVENT.SO_CONFIRMED,
+          payload: {
+            soNumber: so.soNumber,
+            customerId: so.customerId,
+            warehouseId: so.warehouseId,
+            grandTotal: so.grandTotal.toString(),
+            currency: so.currency,
+          },
+        });
       }
 
       return tx.salesOrder.findFirst({
@@ -278,7 +302,7 @@ export class SalesOrderService {
     );
     if (totalAvailable.lt(qty)) {
       throw new BadRequestException(
-        `INV_STOCK_INSUFFICIENT: item ${itemId} available ${totalAvailable}, requested ${qty}`,
+        `INV_STOCK_INSUFFICIENT: item ${itemId} available ${totalAvailable.toString()}, requested ${qty.toString()}`,
       );
     }
 
@@ -309,7 +333,7 @@ export class SalesOrderService {
 
     if (remaining.gt(0)) {
       throw new BadRequestException(
-        `INV_STOCK_INSUFFICIENT: item ${itemId} requested ${qty}`,
+        `INV_STOCK_INSUFFICIENT: item ${itemId} requested ${qty.toString()}`,
       );
     }
   }
@@ -476,7 +500,7 @@ export class SalesOrderService {
     } = query;
     const sortBy = safeSortBy(query.sortBy, SO_SORTABLE_FIELDS);
 
-    const where: any = {
+    const where: Prisma.SalesOrderWhereInput = {
       tenantId,
       deletedAt: null,
       ...(customerId && { customerId }),

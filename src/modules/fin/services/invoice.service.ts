@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { DocumentSequenceService } from '../../../infra/sequence/document-sequence.service.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
@@ -97,11 +98,14 @@ export class InvoiceService {
       'invoiceDate',
     );
 
-    const where: any = {
+    const where: Prisma.InvoiceWhereInput = {
       tenantId,
       ...(invoiceType && { invoiceType }),
       ...(partyId && { partyId }),
       ...(status && { status }),
+    };
+    const orderBy: Prisma.InvoiceOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
     };
 
     const [data, total] = await Promise.all([
@@ -110,7 +114,7 @@ export class InvoiceService {
         select,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
       }),
       this.prisma.invoice.count({ where }),
     ]);

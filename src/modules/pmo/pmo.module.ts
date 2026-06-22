@@ -10,7 +10,12 @@ import { TimesheetService } from './services/timesheet.service.js';
 
 @Module({
   controllers: [ProjectController, TimesheetController],
-  providers: [ProjectService, TaskService, TimesheetService, DocumentSequenceService],
+  providers: [
+    ProjectService,
+    TaskService,
+    TimesheetService,
+    DocumentSequenceService,
+  ],
   exports: [ProjectService, TaskService, TimesheetService],
 })
 export class PmoModule {}

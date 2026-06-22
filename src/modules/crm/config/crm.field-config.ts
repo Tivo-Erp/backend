@@ -46,7 +46,15 @@ const OPP_BASE = [
   'assignedTo',
   'createdAt',
 ];
-const OPP_FULL = [...OPP_BASE, 'expectedCloseDate', 'wonAt', 'lostReason', 'notes', 'createdBy', 'updatedAt'];
+const OPP_FULL = [
+  ...OPP_BASE,
+  'expectedCloseDate',
+  'wonAt',
+  'lostReason',
+  'notes',
+  'createdBy',
+  'updatedAt',
+];
 
 export const OPPORTUNITY_FIELD_CONFIG: FieldConfig = {
   defaultFields: OPP_BASE,

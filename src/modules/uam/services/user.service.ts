@@ -1,7 +1,11 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { InviteUserDto, UpdateUserDto } from '../dto/user.dto.js';
-import { PaginationQueryDto, PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
+import {
+  PaginationQueryDto,
+  PaginatedResponseDto,
+} from '../../../common/dto/pagination.dto.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { USER_FIELD_CONFIG } from '../config/user.field-config.js';
 import { BusinessException } from '../../../common/exceptions/business.exception.js';
@@ -65,7 +69,7 @@ export class UserService {
     },
     userRoles: string[],
   ) {
-    const where: any = { tenantId, deletedAt: null };
+    const where: Prisma.UserWhereInput = { tenantId, deletedAt: null };
     if (query.status) where.status = query.status;
     if (query.roleId) {
       where.userRoles = { some: { roleId: query.roleId } };
@@ -79,7 +83,10 @@ export class UserService {
     }
 
     // Resolve which fields to select
-    const allowed = FieldSelector.resolveAllowedFields(userRoles, USER_FIELD_CONFIG);
+    const allowed = FieldSelector.resolveAllowedFields(
+      userRoles,
+      USER_FIELD_CONFIG,
+    );
     const requestedFields = query.fields
       ? query.fields.split(',').map((f) => f.trim())
       : USER_FIELD_CONFIG.defaultFields;
@@ -104,8 +111,8 @@ export class UserService {
       .map((f) => f.replace('roles.', ''));
 
     // Build Prisma select for flat fields
-    const selectObj: Record<string, any> = {};
-    for (const f of flatFields) selectObj[f] = true;
+    const selectObj: Prisma.UserSelect = {};
+    for (const f of flatFields) selectObj[f as keyof Prisma.UserSelect] = true;
 
     // Always include userRoles relation if roles.* requested
     if (needsRoles) {
@@ -118,25 +125,37 @@ export class UserService {
       };
     }
 
+    const orderBy: Prisma.UserOrderByWithRelationInput = {
+      [query.sortBy || 'createdAt']: query.sortOrder || 'desc',
+    };
+
     const [data, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
         skip: ((query.page || 1) - 1) * (query.limit || 20),
         take: query.limit || 20,
-        orderBy: { [query.sortBy || 'createdAt']: query.sortOrder || 'desc' },
+        orderBy,
         select: selectObj,
       }),
       this.prisma.user.count({ where }),
     ]);
 
+    // The select is built dynamically, so the row shape is only known at
+    // runtime; describe the relation parts the transform below touches.
+    type UserRow = Record<string, unknown> & {
+      userRoles?: { role: Record<string, unknown> }[];
+    };
+
     // Transform userRoles → roles in response
-    const sanitized = data.map((u: any) => {
-      const result = { ...u };
-      if (result.userRoles) {
-        result.roles = result.userRoles.map((ur: any) => ur.role);
-        delete result.userRoles;
+    const sanitized = (data as unknown as UserRow[]).map((u) => {
+      const { userRoles, ...rest } = u;
+      if (userRoles) {
+        return {
+          ...rest,
+          roles: userRoles.map((ur) => ur.role),
+        };
       }
-      return result;
+      return rest;
     });
 
     return PaginatedResponseDto.create(
@@ -157,7 +176,7 @@ export class UserService {
       );
     }
 
-    const data: any = {};
+    const data: Prisma.UserUpdateInput = {};
     if (dto.firstName !== undefined) data.firstName = dto.firstName;
     if (dto.lastName !== undefined) data.lastName = dto.lastName;
 

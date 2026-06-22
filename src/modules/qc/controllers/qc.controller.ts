@@ -55,16 +55,15 @@ export class QcInspectionController {
   @Post()
   @RequirePermissions('qc:inspection:create')
   @ApiOperation({ summary: 'Create an inspection (auto-numbered)' })
-  create(
-    @CurrentTenant() tenantId: string,
-    @Body() dto: CreateInspectionDto,
-  ) {
+  create(@CurrentTenant() tenantId: string, @Body() dto: CreateInspectionDto) {
     return this.service.create(tenantId, dto);
   }
 
   @Get()
   @RequirePermissions('qc:inspection:read')
-  @ApiOperation({ summary: 'List inspections (filter by status to find pending)' })
+  @ApiOperation({
+    summary: 'List inspections (filter by status to find pending)',
+  })
   @ApiQuery({
     name: 'fields',
     required: false,
@@ -99,8 +98,13 @@ export class QcInspectionController {
   @Post(':id/results')
   @RequirePermissions('qc:inspection:execute')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Submit inspection results (derives pass/fail/partial)' })
-  @ApiResponse({ status: 400, description: 'accepted + rejected must equal totalQty' })
+  @ApiOperation({
+    summary: 'Submit inspection results (derives pass/fail/partial)',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'accepted + rejected must equal totalQty',
+  })
   @ApiResponse({ status: 409, description: 'Inspection already finalized' })
   submitResults(
     @CurrentTenant() tenantId: string,

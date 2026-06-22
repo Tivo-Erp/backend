@@ -17,7 +17,7 @@ const mockUser = (overrides = {}) => ({
   ...overrides,
 });
 
-const mockPrisma = {
+const mockPrisma: Record<string, any> = {
   user: {
     findFirst: jest.fn(),
     findMany: jest.fn(),
@@ -39,9 +39,12 @@ const mockPrisma = {
   refreshToken: {
     updateMany: jest.fn(),
   },
-  $transaction: jest.fn(async (cb: any) => {
+  $transaction: jest.fn((cb: any) => {
     const tx = {
-      userRole: { deleteMany: mockPrisma.userRole.deleteMany, createMany: mockPrisma.userRole.createMany },
+      userRole: {
+        deleteMany: mockPrisma.userRole.deleteMany,
+        createMany: mockPrisma.userRole.createMany,
+      },
       user: { update: mockPrisma.user.update },
     };
     return cb(tx);
@@ -81,14 +84,19 @@ describe('UserService', () => {
       });
       mockPrisma.user.count.mockResolvedValue(5);
       mockPrisma.role.findMany.mockResolvedValue([{ id: 'role-staff-id' }]);
-      mockPrisma.user.create.mockResolvedValue(mockUser({ email: 'new@acme.com', status: 'invited' }));
+      mockPrisma.user.create.mockResolvedValue(
+        mockUser({ email: 'new@acme.com', status: 'invited' }),
+      );
 
       const result = await service.invite(TENANT_ID, dto);
 
       expect(result.status).toBe('invited');
       expect(mockPrisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: 'invited', passwordHash: '' }),
+          data: expect.objectContaining({
+            status: 'invited',
+            passwordHash: '',
+          }),
         }),
       );
     });
@@ -142,9 +150,11 @@ describe('UserService', () => {
     it('happy path — sets status=inactive and revokes all tokens', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser());
       mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 2 });
-      mockPrisma.user.update.mockResolvedValue(mockUser({ status: 'inactive' }));
+      mockPrisma.user.update.mockResolvedValue(
+        mockUser({ status: 'inactive' }),
+      );
 
-      const result = await service.deactivate(TENANT_ID, 'user-uuid-1');
+      await service.deactivate(TENANT_ID, 'user-uuid-1');
 
       expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -160,16 +170,22 @@ describe('UserService', () => {
     it('user not found — throws UAM_USER_NOT_FOUND (404)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.deactivate(TENANT_ID, 'ghost-id')).rejects.toMatchObject({
+      await expect(
+        service.deactivate(TENANT_ID, 'ghost-id'),
+      ).rejects.toMatchObject({
         code: 'UAM_USER_NOT_FOUND',
         status: HttpStatus.NOT_FOUND,
       });
     });
 
     it('user belongs to different tenant — throws UAM_USER_NOT_FOUND (404)', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser({ tenantId: 'other-tenant' }));
+      mockPrisma.user.findUnique.mockResolvedValue(
+        mockUser({ tenantId: 'other-tenant' }),
+      );
 
-      await expect(service.deactivate(TENANT_ID, 'user-uuid-1')).rejects.toMatchObject({
+      await expect(
+        service.deactivate(TENANT_ID, 'user-uuid-1'),
+      ).rejects.toMatchObject({
         code: 'UAM_USER_NOT_FOUND',
       });
     });

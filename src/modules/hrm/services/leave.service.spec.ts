@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { LeaveService } from './leave.service.js';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { NotificationService } from '../../ntf/services/notification.service.js';
+import { OutboxService } from '../../../infra/events/outbox.service.js';
 
 const makePrisma = () => ({
   leaveRequest: { findFirst: jest.fn(), updateMany: jest.fn() },
@@ -22,6 +23,7 @@ describe('LeaveService', () => {
         LeaveService,
         { provide: PrismaService, useFactory: makePrisma },
         { provide: NotificationService, useValue: notifications },
+        { provide: OutboxService, useValue: { record: jest.fn() } },
       ],
     }).compile();
     service = module.get(LeaveService);
@@ -32,21 +34,45 @@ describe('LeaveService', () => {
   describe('workingDays', () => {
     it('counts inclusive weekdays excluding weekends', () => {
       // 2026-06-01 (Mon) .. 2026-06-05 (Fri) = 5
-      expect(service.workingDays(new Date('2026-06-01'), new Date('2026-06-05'), 'full_day')).toBe(5);
+      expect(
+        service.workingDays(
+          new Date('2026-06-01'),
+          new Date('2026-06-05'),
+          'full_day',
+        ),
+      ).toBe(5);
     });
 
     it('skips the weekend in a spanning range', () => {
       // 2026-06-05 (Fri) .. 2026-06-08 (Mon) = Fri + Mon = 2
-      expect(service.workingDays(new Date('2026-06-05'), new Date('2026-06-08'), 'full_day')).toBe(2);
+      expect(
+        service.workingDays(
+          new Date('2026-06-05'),
+          new Date('2026-06-08'),
+          'full_day',
+        ),
+      ).toBe(2);
     });
 
     it('returns 0.5 for a single-day half-day request', () => {
-      expect(service.workingDays(new Date('2026-06-01'), new Date('2026-06-01'), 'morning')).toBe(0.5);
+      expect(
+        service.workingDays(
+          new Date('2026-06-01'),
+          new Date('2026-06-01'),
+          'morning',
+        ),
+      ).toBe(0.5);
     });
 
     it('returns 0 for a weekend-only day', () => {
       // 2026-06-06 is Saturday
-      expect(service.workingDays(new Date('2026-06-06'), new Date('2026-06-06'), 'full_day')).toBe(0);
+      expect(
+        service.workingDays(
+          new Date('2026-06-06'),
+          new Date('2026-06-06'),
+          'full_day',
+        ),
+      ).toBe(0);
     });
   });
 
@@ -61,15 +87,25 @@ describe('LeaveService', () => {
 
     it('rejects when the available balance is insufficient', async () => {
       const tx = {
-        employee: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', userId: 'u1' }) },
-        leaveType: { findFirst: jest.fn().mockResolvedValue({ id: 'lt1', defaultDays: 1 }) },
+        employee: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'e1', userId: 'u1' }),
+        },
+        leaveType: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'lt1', defaultDays: 1 }),
+        },
         leaveBalance: {
           findFirst: jest.fn().mockResolvedValue({
-            id: 'lb1', entitlement: '1', carryOver: '0', used: '0',
+            id: 'lb1',
+            entitlement: '1',
+            carryOver: '0',
+            used: '0',
           }),
           create: jest.fn(),
         },
-        leaveRequest: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+        leaveRequest: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          create: jest.fn(),
+        },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       // 2026-07-01..03 = Wed,Thu,Fri = 3 days > 1 available
@@ -80,8 +116,14 @@ describe('LeaveService', () => {
 
     it('rejects dates overlapping an existing pending/approved request', async () => {
       const tx = {
-        employee: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', userId: 'u1' }) },
-        leaveType: { findFirst: jest.fn().mockResolvedValue({ id: 'lt1', defaultDays: 12 }) },
+        employee: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'e1', userId: 'u1' }),
+        },
+        leaveType: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'lt1', defaultDays: 12 }),
+        },
         leaveRequest: {
           findFirst: jest.fn().mockResolvedValue({ id: 'lr-existing' }),
           create: jest.fn(),
@@ -102,15 +144,28 @@ describe('LeaveService', () => {
 
     it('auto-creates a balance from the leave type default when missing', async () => {
       const tx = {
-        employee: { findFirst: jest.fn().mockResolvedValue({ id: 'e1', userId: 'u1' }) },
-        leaveType: { findFirst: jest.fn().mockResolvedValue({ id: 'lt1', defaultDays: 12 }) },
+        employee: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'e1', userId: 'u1' }),
+        },
+        leaveType: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'lt1', defaultDays: 12 }),
+        },
         leaveBalance: {
           findFirst: jest.fn().mockResolvedValue(null),
-          create: jest.fn().mockResolvedValue({ id: 'lb1', entitlement: '12', carryOver: '0', used: '0' }),
+          create: jest.fn().mockResolvedValue({
+            id: 'lb1',
+            entitlement: '12',
+            carryOver: '0',
+            used: '0',
+          }),
         },
         leaveRequest: {
           findFirst: jest.fn().mockResolvedValue(null),
-          create: jest.fn().mockImplementation((a: any) => ({ id: 'lr1', ...a.data })),
+          create: jest
+            .fn()
+            .mockImplementation((a: any) => ({ id: 'lr1', ...a.data })),
         },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
@@ -141,13 +196,18 @@ describe('LeaveService', () => {
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         leaveBalance: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'lb1', entitlement: '12', carryOver: '0', used: '0' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'lb1',
+            entitlement: '12',
+            carryOver: '0',
+            used: '0',
+          }),
         },
         employee: { findFirst: jest.fn().mockResolvedValue({ userId: 'u1' }) },
         $executeRaw: jest.fn().mockResolvedValue(1),
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
-      await service.approve(tenantId, 'lr1', 'mgr1', {} as any);
+      await service.approve(tenantId, 'lr1', 'mgr1', {});
       expect(tx.$executeRaw).toHaveBeenCalled();
       expect(notifications.create).toHaveBeenCalled();
     });
@@ -159,28 +219,37 @@ describe('LeaveService', () => {
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         leaveBalance: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'lb1', entitlement: '12', carryOver: '0', used: '0' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'lb1',
+            entitlement: '12',
+            carryOver: '0',
+            used: '0',
+          }),
         },
         employee: { findFirst: jest.fn() },
         $executeRaw: jest.fn().mockResolvedValue(0),
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
-      await expect(service.approve(tenantId, 'lr1', 'mgr1', {} as any)).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.approve(tenantId, 'lr1', 'mgr1', {} as any),
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(notifications.create).not.toHaveBeenCalled();
     });
 
     it('rejects a non-pending request', async () => {
       const tx = {
-        leaveRequest: { findFirst: jest.fn().mockResolvedValue({ id: 'lr1', status: 'approved' }) },
+        leaveRequest: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'lr1', status: 'approved' }),
+        },
         leaveBalance: { findFirst: jest.fn() },
         employee: { findFirst: jest.fn() },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
-      await expect(service.approve(tenantId, 'lr1', 'mgr1', {} as any)).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.approve(tenantId, 'lr1', 'mgr1', {} as any),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
   });
 });

@@ -1,9 +1,8 @@
 import { Reflector } from '@nestjs/core';
-import { ExecutionContext, HttpStatus } from '@nestjs/common';
+import { ExecutionContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TenantGuard } from './tenant.guard.js';
 import { RbacGuard } from './rbac.guard.js';
-import { BusinessException } from '../exceptions/business.exception.js';
 import { currentTenantId } from '../../infra/database/tenant-context.js';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

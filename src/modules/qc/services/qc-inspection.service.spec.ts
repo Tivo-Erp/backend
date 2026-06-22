@@ -16,7 +16,9 @@ const makePrisma = () => ({
 describe('QcInspectionService.submitResults', () => {
   let service: QcInspectionService;
   let prisma: ReturnType<typeof makePrisma>;
-  const sequences = { getNextNumber: jest.fn().mockResolvedValue('QC-2026-00001') };
+  const sequences = {
+    getNextNumber: jest.fn().mockResolvedValue('QC-2026-00001'),
+  };
   const tenantId = 't1';
 
   beforeEach(async () => {
@@ -40,7 +42,11 @@ describe('QcInspectionService.submitResults', () => {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce(inspection)
-          .mockResolvedValueOnce({ ...inspection, status: finalStatus, results: [] }),
+          .mockResolvedValueOnce({
+            ...inspection,
+            status: finalStatus,
+            results: [],
+          }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       qCInspectionResult: { deleteMany: jest.fn(), createMany: jest.fn() },
@@ -48,57 +54,89 @@ describe('QcInspectionService.submitResults', () => {
   }
 
   it('rejects when accepted + rejected does not equal totalQty', async () => {
-    const tx = txFor({ id: 'qc1', status: 'pending', totalQty: '100' }, 'passed');
+    const tx = txFor(
+      { id: 'qc1', status: 'pending', totalQty: '100' },
+      'passed',
+    );
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
     await expect(
       service.submitResults(tenantId, 'insp1', 'qc1', {
-        acceptedQty: 90, rejectedQty: 5, results,
+        acceptedQty: 90,
+        rejectedQty: 5,
+        results,
       } as any),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('derives "passed" when nothing is rejected', async () => {
-    const tx = txFor({ id: 'qc1', status: 'pending', totalQty: '100' }, 'passed');
+    const tx = txFor(
+      { id: 'qc1', status: 'pending', totalQty: '100' },
+      'passed',
+    );
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
     await service.submitResults(tenantId, 'insp1', 'qc1', {
-      acceptedQty: 100, rejectedQty: 0, results,
-    } as any);
+      acceptedQty: 100,
+      rejectedQty: 0,
+      results,
+    });
     expect(tx.qCInspection.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'passed' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'passed' }),
+      }),
     );
   });
 
   it('derives "failed" when nothing is accepted', async () => {
-    const tx = txFor({ id: 'qc1', status: 'pending', totalQty: '100' }, 'failed');
+    const tx = txFor(
+      { id: 'qc1', status: 'pending', totalQty: '100' },
+      'failed',
+    );
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
     await service.submitResults(tenantId, 'insp1', 'qc1', {
-      acceptedQty: 0, rejectedQty: 100, results,
-    } as any);
+      acceptedQty: 0,
+      rejectedQty: 100,
+      results,
+    });
     expect(tx.qCInspection.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'failed' }),
+      }),
     );
   });
 
   it('derives "partial_pass" on a mixed result', async () => {
-    const tx = txFor({ id: 'qc1', status: 'pending', totalQty: '100' }, 'partial_pass');
+    const tx = txFor(
+      { id: 'qc1', status: 'pending', totalQty: '100' },
+      'partial_pass',
+    );
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
     await service.submitResults(tenantId, 'insp1', 'qc1', {
-      acceptedQty: 95, rejectedQty: 5, results,
-    } as any);
+      acceptedQty: 95,
+      rejectedQty: 5,
+      results,
+    });
     expect(tx.qCInspection.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'partial_pass' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'partial_pass' }),
+      }),
     );
   });
 
   it('refuses to finalize an already-finalized inspection', async () => {
     const tx = {
-      qCInspection: { findFirst: jest.fn().mockResolvedValue({ id: 'qc1', status: 'passed', totalQty: '100' }) },
+      qCInspection: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'qc1', status: 'passed', totalQty: '100' }),
+      },
       qCInspectionResult: { deleteMany: jest.fn(), createMany: jest.fn() },
     };
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
     await expect(
       service.submitResults(tenantId, 'insp1', 'qc1', {
-        acceptedQty: 100, rejectedQty: 0, results,
+        acceptedQty: 100,
+        rejectedQty: 0,
+        results,
       } as any),
     ).rejects.toBeInstanceOf(ConflictException);
   });
@@ -113,7 +151,10 @@ describe('QcInspectionService.submitResults', () => {
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       await expect(
         service.create(tenantId, {
-          sourceType: 'grn', sourceId: 'g-missing', itemId: 'i1', totalQty: 10,
+          sourceType: 'grn',
+          sourceId: 'g-missing',
+          itemId: 'i1',
+          totalQty: 10,
         } as any),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(tx.qCInspection.create).not.toHaveBeenCalled();
@@ -124,13 +165,18 @@ describe('QcInspectionService.submitResults', () => {
         item: { findFirst: jest.fn().mockResolvedValue({ id: 'i1' }) },
         workOrder: { findFirst: jest.fn().mockResolvedValue({ id: 'wo1' }) },
         qCInspection: {
-          create: jest.fn().mockImplementation((a: any) => ({ id: 'qc1', ...a.data })),
+          create: jest
+            .fn()
+            .mockImplementation((a: any) => ({ id: 'qc1', ...a.data })),
         },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       const insp: any = await service.create(tenantId, {
-        sourceType: 'work_order', sourceId: 'wo1', itemId: 'i1', totalQty: 10,
-      } as any);
+        sourceType: 'work_order',
+        sourceId: 'wo1',
+        itemId: 'i1',
+        totalQty: 10,
+      });
       expect(insp.status).toBe('pending');
       expect(tx.workOrder.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({

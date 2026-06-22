@@ -60,7 +60,11 @@ describe('EmployeeService PII handling', () => {
   it('decrypts PII for callers with read_pii', async () => {
     prisma.employee.findFirst.mockResolvedValue(row());
     const emp: any = await service.findOne(
-      tenantId, 'e1', ['tenant_owner'], true, 'fullName,idNumber,bankAccNum',
+      tenantId,
+      'e1',
+      ['tenant_owner'],
+      true,
+      'fullName,idNumber,bankAccNum',
     );
     expect(emp.fullName).toBe('Nguyễn Văn An');
     expect(emp.idNumber).toBe('079123456789');
@@ -69,8 +73,13 @@ describe('EmployeeService PII handling', () => {
 
   it('masks PII per field policy without read_pii', async () => {
     prisma.employee.findFirst.mockResolvedValue(row());
-    const emp: any = await service.findOne(tenantId, 'e1', ['tenant_owner'], false,
-      'fullName,dateOfBirth,idNumber,socialInsNum,bankAccNum');
+    const emp: any = await service.findOne(
+      tenantId,
+      'e1',
+      ['tenant_owner'],
+      false,
+      'fullName,dateOfBirth,idNumber,socialInsNum,bankAccNum',
+    );
     expect(emp.fullName).toBe('Nguyễn ••••'); // first token only
     expect(emp.dateOfBirth).toBe('••••'); // fully masked
     expect(emp.idNumber).toBe('••••'); // fully masked
@@ -81,7 +90,11 @@ describe('EmployeeService PII handling', () => {
   it('honours ?fields= and never returns ciphertext columns', async () => {
     prisma.employee.findFirst.mockResolvedValue(row());
     const emp: any = await service.findOne(
-      tenantId, 'e1', ['tenant_owner'], true, 'id,employeeCode,fullName',
+      tenantId,
+      'e1',
+      ['tenant_owner'],
+      true,
+      'id,employeeCode,fullName',
     );
     expect(Object.keys(emp).sort()).toEqual(['employeeCode', 'fullName', 'id']);
     expect(JSON.stringify(emp)).not.toContain('Encrypted');
@@ -97,7 +110,12 @@ describe('EmployeeService PII handling', () => {
   it('defaults the list to defaultFields (no salary/PII identifiers)', async () => {
     prisma.employee.findMany.mockResolvedValue([row()]);
     prisma.employee.count.mockResolvedValue(1);
-    const page: any = await service.findAll(tenantId, {} as any, ['tenant_owner'], false);
+    const page: any = await service.findAll(
+      tenantId,
+      {},
+      ['tenant_owner'],
+      false,
+    );
     const emp = page.data[0];
     expect(emp.basicSalary).toBeUndefined();
     expect(emp.idNumber).toBeUndefined();

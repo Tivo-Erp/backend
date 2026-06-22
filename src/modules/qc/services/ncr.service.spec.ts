@@ -18,7 +18,9 @@ const makePrisma = () => ({
 describe('NcrService', () => {
   let service: NcrService;
   let prisma: ReturnType<typeof makePrisma>;
-  const sequences = { getNextNumber: jest.fn().mockResolvedValue('NCR-2026-00001') };
+  const sequences = {
+    getNextNumber: jest.fn().mockResolvedValue('NCR-2026-00001'),
+  };
   const tenantId = 't1';
 
   beforeEach(async () => {
@@ -55,14 +57,16 @@ describe('NcrService', () => {
     it('creates an open NCR with server-assigned number', async () => {
       const tx = {
         nCRReport: {
-          create: jest.fn().mockImplementation((a: any) => ({ id: 'n1', ...a.data })),
+          create: jest
+            .fn()
+            .mockImplementation((a: any) => ({ id: 'n1', ...a.data })),
         },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       const ncr: any = await service.create(tenantId, 'u1', {
         description: 'dent on housing',
         disposition: 'rework',
-      } as any);
+      });
       expect(ncr.ncrNumber).toBe('NCR-2026-00001');
       expect(ncr.status).toBe('open');
     });
@@ -85,12 +89,16 @@ describe('NcrService', () => {
     it('updates disposition/status on an open NCR', async () => {
       prisma.nCRReport.findFirst
         .mockResolvedValueOnce({ id: 'n1' })
-        .mockResolvedValueOnce({ id: 'n1', disposition: 'scrap', status: 'in_progress' });
+        .mockResolvedValueOnce({
+          id: 'n1',
+          disposition: 'scrap',
+          status: 'in_progress',
+        });
       prisma.nCRReport.updateMany.mockResolvedValue({ count: 1 });
       const ncr: any = await service.update(tenantId, 'n1', {
         disposition: 'scrap',
         status: 'in_progress',
-      } as any);
+      });
       expect(ncr.disposition).toBe('scrap');
     });
   });

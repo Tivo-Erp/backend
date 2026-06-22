@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { DocumentSequenceService } from '../../../infra/sequence/document-sequence.service.js';
@@ -17,7 +14,14 @@ import {
 } from '../dto/pmo.dto.js';
 
 const dec = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n);
-const PROJECT_SORTABLE = ['createdAt', 'updatedAt', 'code', 'name', 'status', 'startDate'] as const;
+const PROJECT_SORTABLE = [
+  'createdAt',
+  'updatedAt',
+  'code',
+  'name',
+  'status',
+  'startDate',
+] as const;
 
 @Injectable()
 export class ProjectService {
@@ -36,7 +40,12 @@ export class ProjectService {
         if (!customer) throw new NotFoundException('SAL_CUSTOMER_NOT_FOUND');
       }
 
-      const code = await this.sequences.getNextNumber(tenantId, 'PRJ', undefined, tx);
+      const code = await this.sequences.getNextNumber(
+        tenantId,
+        'PRJ',
+        undefined,
+        tx,
+      );
 
       // De-dup members and always include the manager as a member.
       const memberIds = new Set(dto.memberIds ?? []);
@@ -86,8 +95,19 @@ export class ProjectService {
   }
 
   async findAll(tenantId: string, query: ProjectQueryDto, userRoles: string[]) {
-    const select = FieldSelector.buildPrismaSelect(query.fields, userRoles, PROJECT_FIELD_CONFIG);
-    const { page = 1, limit = 20, sortOrder = 'desc', status, customerId, search } = query;
+    const select = FieldSelector.buildPrismaSelect(
+      query.fields,
+      userRoles,
+      PROJECT_FIELD_CONFIG,
+    );
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      status,
+      customerId,
+      search,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, PROJECT_SORTABLE);
 
     const where: Prisma.ProjectWhereInput = {
@@ -127,7 +147,11 @@ export class ProjectService {
 
   // ── Milestones ────────────────────────────────────────────────
 
-  async addMilestone(tenantId: string, projectId: string, dto: CreateMilestoneDto) {
+  async addMilestone(
+    tenantId: string,
+    projectId: string,
+    dto: CreateMilestoneDto,
+  ) {
     await this.require(tenantId, projectId);
     return this.prisma.milestone.create({
       data: {

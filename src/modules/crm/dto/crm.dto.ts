@@ -75,7 +75,7 @@ export class CreateLeadDto {
   phone?: string;
 
   @ApiProperty({ enum: LEAD_SOURCES })
-  @IsIn(LEAD_SOURCES as unknown as string[])
+  @IsIn(LEAD_SOURCES)
   source: string;
 
   @ApiPropertyOptional({ example: 50000000 })
@@ -105,7 +105,7 @@ export class UpdateLeadDto {
 
   @ApiPropertyOptional({ enum: LEAD_STATUSES })
   @IsOptional()
-  @IsIn(LEAD_STATUSES as unknown as string[])
+  @IsIn(LEAD_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 100 })
@@ -127,7 +127,10 @@ export class UpdateLeadDto {
 }
 
 export class ConvertLeadDto {
-  @ApiPropertyOptional({ default: true, description: 'Create a customer in SAL' })
+  @ApiPropertyOptional({
+    default: true,
+    description: 'Create a customer in SAL',
+  })
   @IsOptional()
   @IsBoolean()
   createCustomer?: boolean;
@@ -141,7 +144,7 @@ export class ConvertLeadDto {
 export class LeadQueryDto extends PaginatedFieldsQueryDto {
   @ApiPropertyOptional({ enum: LEAD_STATUSES })
   @IsOptional()
-  @IsIn(LEAD_STATUSES as unknown as string[])
+  @IsIn(LEAD_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -257,11 +260,11 @@ export class CreateTicketDto {
   description: string;
 
   @ApiProperty({ enum: TICKET_PRIORITIES })
-  @IsIn(TICKET_PRIORITIES as unknown as string[])
+  @IsIn(TICKET_PRIORITIES)
   priority: string;
 
   @ApiProperty({ enum: TICKET_CATEGORIES })
-  @IsIn(TICKET_CATEGORIES as unknown as string[])
+  @IsIn(TICKET_CATEGORIES)
   category: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -273,7 +276,7 @@ export class CreateTicketDto {
 export class UpdateTicketDto {
   @ApiPropertyOptional({ enum: TICKET_STATUSES })
   @IsOptional()
-  @IsIn(TICKET_STATUSES as unknown as string[])
+  @IsIn(TICKET_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -307,12 +310,12 @@ export class TicketQueryDto extends PaginatedFieldsQueryDto {
 
   @ApiPropertyOptional({ enum: TICKET_STATUSES })
   @IsOptional()
-  @IsIn(TICKET_STATUSES as unknown as string[])
+  @IsIn(TICKET_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ enum: TICKET_PRIORITIES })
   @IsOptional()
-  @IsIn(TICKET_PRIORITIES as unknown as string[])
+  @IsIn(TICKET_PRIORITIES)
   priority?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })

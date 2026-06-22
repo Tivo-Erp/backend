@@ -186,71 +186,254 @@ const PERMISSIONS = [
   { code: 'mfg:wo:update', module: 'MFG', description: 'Update work order' },
   { code: 'mfg:wo:delete', module: 'MFG', description: 'Delete work order' },
   { code: 'mfg:wo:release', module: 'MFG', description: 'Release work order' },
-  { code: 'mfg:wo:execute', module: 'MFG', description: 'Report consumption/output' },
+  {
+    code: 'mfg:wo:execute',
+    module: 'MFG',
+    description: 'Report consumption/output',
+  },
   { code: 'mfg:wo:cancel', module: 'MFG', description: 'Cancel work order' },
 
   // QC (Batch 4)
-  { code: 'qc:inspection:create', module: 'QC', description: 'Create inspection' },
+  {
+    code: 'qc:inspection:create',
+    module: 'QC',
+    description: 'Create inspection',
+  },
   { code: 'qc:inspection:read', module: 'QC', description: 'View inspections' },
-  { code: 'qc:inspection:execute', module: 'QC', description: 'Submit inspection results' },
+  {
+    code: 'qc:inspection:execute',
+    module: 'QC',
+    description: 'Submit inspection results',
+  },
   { code: 'qc:ncr:create', module: 'QC', description: 'Create NCR report' },
   { code: 'qc:ncr:read', module: 'QC', description: 'View NCR reports' },
   { code: 'qc:ncr:update', module: 'QC', description: 'Update NCR report' },
 
   // HRM (Batch 4)
-  { code: 'hrm:employee:create', module: 'HRM', description: 'Onboard employee' },
+  {
+    code: 'hrm:employee:create',
+    module: 'HRM',
+    description: 'Onboard employee',
+  },
   { code: 'hrm:employee:read', module: 'HRM', description: 'View employees' },
-  { code: 'hrm:employee:update', module: 'HRM', description: 'Update employee' },
-  { code: 'hrm:employee:read_pii', module: 'HRM', description: 'View decrypted PII' },
-  { code: 'hrm:leave:create', module: 'HRM', description: 'Submit leave request' },
+  {
+    code: 'hrm:employee:update',
+    module: 'HRM',
+    description: 'Update employee',
+  },
+  {
+    code: 'hrm:employee:read_pii',
+    module: 'HRM',
+    description: 'View decrypted PII',
+  },
+  {
+    code: 'hrm:leave:create',
+    module: 'HRM',
+    description: 'Submit leave request',
+  },
   { code: 'hrm:leave:read', module: 'HRM', description: 'View leave requests' },
-  { code: 'hrm:leave:approve', module: 'HRM', description: 'Approve/reject leave request' },
-  { code: 'hrm:leave:manage', module: 'HRM', description: 'Manage leave types & balances' },
-  { code: 'hrm:payroll:calculate', module: 'HRM', description: 'Calculate payroll run' },
+  {
+    code: 'hrm:leave:approve',
+    module: 'HRM',
+    description: 'Approve/reject leave request',
+  },
+  {
+    code: 'hrm:leave:manage',
+    module: 'HRM',
+    description: 'Manage leave types & balances',
+  },
+  {
+    code: 'hrm:payroll:calculate',
+    module: 'HRM',
+    description: 'Calculate payroll run',
+  },
   { code: 'hrm:payroll:read', module: 'HRM', description: 'View payroll runs' },
-  { code: 'hrm:payroll:approve', module: 'HRM', description: 'Approve payroll (auto-journal)' },
+  {
+    code: 'hrm:payroll:approve',
+    module: 'HRM',
+    description: 'Approve payroll (auto-journal)',
+  },
 
   // WFL (Batch 4)
-  { code: 'wfl:definition:create', module: 'WFL', description: 'Create workflow definition' },
-  { code: 'wfl:definition:read', module: 'WFL', description: 'View workflow definitions' },
-  { code: 'wfl:definition:update', module: 'WFL', description: 'Update workflow definition' },
-  { code: 'wfl:task:read', module: 'WFL', description: 'View my approval tasks' },
-  { code: 'wfl:task:action', module: 'WFL', description: 'Approve/reject workflow task' },
-  { code: 'wfl:instance:start', module: 'WFL', description: 'Start a workflow instance' },
+  {
+    code: 'wfl:definition:create',
+    module: 'WFL',
+    description: 'Create workflow definition',
+  },
+  {
+    code: 'wfl:definition:read',
+    module: 'WFL',
+    description: 'View workflow definitions',
+  },
+  {
+    code: 'wfl:definition:update',
+    module: 'WFL',
+    description: 'Update workflow definition',
+  },
+  {
+    code: 'wfl:task:read',
+    module: 'WFL',
+    description: 'View my approval tasks',
+  },
+  {
+    code: 'wfl:task:action',
+    module: 'WFL',
+    description: 'Approve/reject workflow task',
+  },
+  {
+    code: 'wfl:instance:start',
+    module: 'WFL',
+    description: 'Start a workflow instance',
+  },
 
   // NTF (Batch 4)
-  { code: 'ntf:notification:read', module: 'NTF', description: 'View my notifications' },
-  { code: 'ntf:notification:update', module: 'NTF', description: 'Mark notifications read' },
-  { code: 'ntf:preference:read', module: 'NTF', description: 'View notification preferences' },
-  { code: 'ntf:preference:update', module: 'NTF', description: 'Update notification preferences' },
+  {
+    code: 'ntf:notification:read',
+    module: 'NTF',
+    description: 'View my notifications',
+  },
+  {
+    code: 'ntf:notification:update',
+    module: 'NTF',
+    description: 'Mark notifications read',
+  },
+  {
+    code: 'ntf:preference:read',
+    module: 'NTF',
+    description: 'View notification preferences',
+  },
+  {
+    code: 'ntf:preference:update',
+    module: 'NTF',
+    description: 'Update notification preferences',
+  },
 
   // DEL (Batch 5)
-  { code: 'sal:dn:create', module: 'DEL', description: 'Create delivery note from SO' },
+  {
+    code: 'sal:dn:create',
+    module: 'DEL',
+    description: 'Create delivery note from SO',
+  },
   { code: 'sal:dn:read', module: 'DEL', description: 'View delivery notes' },
-  { code: 'del:picking:manage', module: 'DEL', description: 'Start picking / confirm picked' },
+  {
+    code: 'del:picking:manage',
+    module: 'DEL',
+    description: 'Start picking / confirm picked',
+  },
   { code: 'del:packing:manage', module: 'DEL', description: 'Confirm packing' },
-  { code: 'del:dispatch:manage', module: 'DEL', description: 'Dispatch / fail / re-dispatch delivery' },
-  { code: 'del:pod:submit', module: 'DEL', description: 'Submit proof of delivery' },
-  { code: 'del:return:manage', module: 'DEL', description: 'Mark delivery returned' },
-  { code: 'del:schedule:read', module: 'DEL', description: 'View delivery schedule' },
+  {
+    code: 'del:dispatch:manage',
+    module: 'DEL',
+    description: 'Dispatch / fail / re-dispatch delivery',
+  },
+  {
+    code: 'del:pod:submit',
+    module: 'DEL',
+    description: 'Submit proof of delivery',
+  },
+  {
+    code: 'del:return:manage',
+    module: 'DEL',
+    description: 'Mark delivery returned',
+  },
+  {
+    code: 'del:schedule:read',
+    module: 'DEL',
+    description: 'View delivery schedule',
+  },
 
   // AST + FIN Reports (Batch 5)
-  { code: 'fin:asset:manage', module: 'FIN', description: 'Manage fixed assets + depreciation' },
-  { code: 'fin:report:read', module: 'FIN', description: 'Read financial reports' },
+  {
+    code: 'fin:asset:manage',
+    module: 'FIN',
+    description: 'Manage fixed assets + depreciation',
+  },
+  {
+    code: 'fin:report:read',
+    module: 'FIN',
+    description: 'Read financial reports',
+  },
 
   // CRM (Batch 5)
-  { code: 'crm:lead:create', module: 'CRM', description: 'Create / update leads' },
+  {
+    code: 'crm:lead:create',
+    module: 'CRM',
+    description: 'Create / update leads',
+  },
   { code: 'crm:lead:read', module: 'CRM', description: 'View leads' },
-  { code: 'crm:opportunity:manage', module: 'CRM', description: 'Manage opportunities + convert leads' },
-  { code: 'crm:ticket:create', module: 'CRM', description: 'Create support tickets' },
-  { code: 'crm:ticket:manage', module: 'CRM', description: 'Manage support tickets' },
+  {
+    code: 'crm:opportunity:manage',
+    module: 'CRM',
+    description: 'Manage opportunities + convert leads',
+  },
+  {
+    code: 'crm:ticket:create',
+    module: 'CRM',
+    description: 'Create support tickets',
+  },
+  {
+    code: 'crm:ticket:manage',
+    module: 'CRM',
+    description: 'Manage support tickets',
+  },
 
   // PMO (Batch 5)
-  { code: 'pmo:project:create', module: 'PMO', description: 'Create / update projects' },
+  {
+    code: 'pmo:project:create',
+    module: 'PMO',
+    description: 'Create / update projects',
+  },
   { code: 'pmo:project:read', module: 'PMO', description: 'View projects' },
-  { code: 'pmo:task:manage', module: 'PMO', description: 'Manage project tasks' },
+  {
+    code: 'pmo:task:manage',
+    module: 'PMO',
+    description: 'Manage project tasks',
+  },
   { code: 'pmo:task:read', module: 'PMO', description: 'View project tasks' },
-  { code: 'pmo:timesheet:manage', module: 'PMO', description: 'Log / approve timesheets' },
+  {
+    code: 'pmo:timesheet:manage',
+    module: 'PMO',
+    description: 'Log / approve timesheets',
+  },
+
+  // SHP (Shipping & Logistics) — Batch 7
+  {
+    code: 'shp:carrier:manage',
+    module: 'SHP',
+    description: 'Manage shipping carriers',
+  },
+  {
+    code: 'shp:shipment:create',
+    module: 'SHP',
+    description: 'Create / update shipments + tracking',
+  },
+  {
+    code: 'shp:shipment:read',
+    module: 'SHP',
+    description: 'View shipments + tracking',
+  },
+  {
+    code: 'shp:rate:read',
+    module: 'SHP',
+    description: 'Compare carrier shipping rates',
+  },
+
+  // Cross-cutting infrastructure (Batch 6)
+  {
+    code: 'file:upload',
+    module: 'INF',
+    description: 'Request a file upload URL',
+  },
+  {
+    code: 'file:read',
+    module: 'INF',
+    description: 'Request a file download URL',
+  },
+  {
+    code: 'search:read',
+    module: 'INF',
+    description: 'Use global full-text search',
+  },
 ];
 
 const PLANS = [
@@ -295,14 +478,19 @@ async function main() {
   // permissions that existed at registration time. Re-grant the full catalog
   // to every tenant's owner system role (idempotent via skipDuplicates).
   console.log('Backfilling owner-role permissions for existing tenants...');
-  const allPermissions = await prisma.permission.findMany({ select: { id: true } });
+  const allPermissions = await prisma.permission.findMany({
+    select: { id: true },
+  });
   const ownerRoles = await prisma.role.findMany({
     where: { name: 'tenant_owner', isSystem: true },
     select: { id: true },
   });
   for (const role of ownerRoles) {
     await prisma.rolePermission.createMany({
-      data: allPermissions.map((p) => ({ roleId: role.id, permissionId: p.id })),
+      data: allPermissions.map((p) => ({
+        roleId: role.id,
+        permissionId: p.id,
+      })),
       skipDuplicates: true,
     });
   }

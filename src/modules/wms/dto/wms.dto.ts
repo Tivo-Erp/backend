@@ -15,52 +15,67 @@ import {
 
 export class CreateWarehouseDto {
   @ApiProperty({ example: 'WH-HN' })
-  @IsString() @MinLength(1) @MaxLength(20)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20)
   code: string;
 
   @ApiProperty({ example: 'Hà Nội Main Warehouse' })
-  @IsString() @MinLength(1) @MaxLength(200)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
   name: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   branchId?: string;
 
   @ApiPropertyOptional({ example: '123 Giải Phóng, Hà Nội' })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   address?: string;
 }
 
 export class UpdateWarehouseDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
   name?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   address?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsBoolean()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
 
 // ── Zone ──────────────────────────────────────────────────────
 
 export enum ZoneType {
-  BULK       = 'bulk',
-  PICK       = 'pick',
-  STAGING    = 'staging',
+  BULK = 'bulk',
+  PICK = 'pick',
+  STAGING = 'staging',
   QUARANTINE = 'quarantine',
-  DISPATCH   = 'dispatch',
-  RECEIVING  = 'receiving',
-  STORAGE    = 'storage',
+  DISPATCH = 'dispatch',
+  RECEIVING = 'receiving',
+  STORAGE = 'storage',
 }
 
 export class CreateZoneDto {
   @ApiProperty({ example: 'ZONE-A' })
-  @IsString() @MaxLength(20)
+  @IsString()
+  @MaxLength(20)
   code: string;
 
   @ApiProperty({ example: 'Zone A — Picking' })
-  @IsString() @MaxLength(200)
+  @IsString()
+  @MaxLength(200)
   name: string;
 
   @ApiProperty({ enum: ZoneType })
@@ -69,30 +84,38 @@ export class CreateZoneDto {
 }
 
 export class UpdateZoneDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
   name?: string;
 
-  @ApiPropertyOptional({ enum: ZoneType }) @IsOptional() @IsEnum(ZoneType)
+  @ApiPropertyOptional({ enum: ZoneType })
+  @IsOptional()
+  @IsEnum(ZoneType)
   zoneType?: ZoneType;
 }
 
 // ── Bin ───────────────────────────────────────────────────────
 
 export enum BinType {
-  GENERAL     = 'general',
-  PICK        = 'pick',
-  BULK        = 'bulk',
-  PALLET      = 'pallet',
+  GENERAL = 'general',
+  PICK = 'pick',
+  BULK = 'bulk',
+  PALLET = 'pallet',
   REFRIGERATED = 'refrigerated',
 }
 
 export class CreateBinDto {
   @ApiProperty({ example: 'A-01-001' })
-  @IsString() @MaxLength(50)
+  @IsString()
+  @MaxLength(50)
   barcode: string;
 
   @ApiPropertyOptional({ example: 'Shelf A Row 1 Slot 1' })
-  @IsOptional() @IsString() @MaxLength(100)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   label?: string;
 
   @ApiProperty({ enum: BinType })
@@ -100,20 +123,32 @@ export class CreateBinDto {
   binType: BinType;
 
   @ApiPropertyOptional({ example: 500 })
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0)
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
   maxWeightKg?: number;
 }
 
 export class UpdateBinDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
   label?: string;
 
-  @ApiPropertyOptional({ enum: BinType }) @IsOptional() @IsEnum(BinType)
+  @ApiPropertyOptional({ enum: BinType })
+  @IsOptional()
+  @IsEnum(BinType)
   binType?: BinType;
 
-  @ApiPropertyOptional() @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
   maxWeightKg?: number;
 
-  @ApiPropertyOptional() @IsOptional() @IsBoolean()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }

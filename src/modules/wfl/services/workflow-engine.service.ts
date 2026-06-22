@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { NotificationService } from '../../ntf/services/notification.service.js';
@@ -42,51 +43,55 @@ export class WorkflowEngineService {
   // ── Start an instance ─────────────────────────────────────────
 
   async start(tenantId: string, userId: string, dto: StartWorkflowDto) {
-    const { instance, payloads } = await this.prisma.$transaction(async (tx) => {
-      const def = await tx.workflowDefinition.findFirst({
-        where: { id: dto.definitionId, tenantId },
-        include: { steps: { orderBy: { stepNumber: 'asc' } } },
-      });
-      if (!def) throw new NotFoundException('WFL_DEFINITION_NOT_FOUND');
-      if (!def.isActive) throw new ConflictException('WFL_DEFINITION_INACTIVE');
-      if (def.steps.length === 0)
-        throw new BadRequestException('WFL_DEFINITION_NO_STEPS');
-      if (dto.entityType !== def.triggerEntity) {
-        throw new BadRequestException('WFL_ENTITY_TYPE_MISMATCH');
-      }
+    const { instance, payloads } = await this.prisma.$transaction(
+      async (tx) => {
+        const def = await tx.workflowDefinition.findFirst({
+          where: { id: dto.definitionId, tenantId },
+          include: { steps: { orderBy: { stepNumber: 'asc' } } },
+        });
+        if (!def) throw new NotFoundException('WFL_DEFINITION_NOT_FOUND');
+        if (!def.isActive)
+          throw new ConflictException('WFL_DEFINITION_INACTIVE');
+        if (def.steps.length === 0)
+          throw new BadRequestException('WFL_DEFINITION_NO_STEPS');
+        if (dto.entityType !== def.triggerEntity) {
+          throw new BadRequestException('WFL_ENTITY_TYPE_MISMATCH');
+        }
 
-      // One running approval chain per entity per definition.
-      const running = await tx.workflowInstance.findFirst({
-        where: {
-          tenantId,
-          definitionId: def.id,
-          entityId: dto.entityId,
-          status: 'running',
-        },
-        select: { id: true },
-      });
-      if (running) throw new ConflictException('WFL_INSTANCE_ALREADY_RUNNING');
+        // One running approval chain per entity per definition.
+        const running = await tx.workflowInstance.findFirst({
+          where: {
+            tenantId,
+            definitionId: def.id,
+            entityId: dto.entityId,
+            status: 'running',
+          },
+          select: { id: true },
+        });
+        if (running)
+          throw new ConflictException('WFL_INSTANCE_ALREADY_RUNNING');
 
-      const created = await tx.workflowInstance.create({
-        data: {
-          tenantId,
-          definitionId: def.id,
-          entityType: dto.entityType,
-          entityId: dto.entityId,
-          currentStep: 1,
-          status: 'running',
-          requestedBy: userId,
-        },
-      });
+        const created = await tx.workflowInstance.create({
+          data: {
+            tenantId,
+            definitionId: def.id,
+            entityType: dto.entityType,
+            entityId: dto.entityId,
+            currentStep: 1,
+            status: 'running',
+            requestedBy: userId,
+          },
+        });
 
-      const pending = await this.collectStepApproverNotifications(
-        tx,
-        created,
-        def.steps,
-        1,
-      );
-      return { instance: created, payloads: pending };
-    });
+        const pending = await this.collectStepApproverNotifications(
+          tx,
+          created,
+          def.steps,
+          1,
+        );
+        return { instance: created, payloads: pending };
+      },
+    );
 
     // Deliver only after the transaction committed — no phantom tasks.
     await this.deliver(tenantId, payloads);
@@ -189,117 +194,144 @@ export class WorkflowEngineService {
   ) {
     const myRoleIds = await this.myRoleIds(userId);
 
-    const { instance, payloads } = await this.prisma.$transaction(async (tx) => {
-      const pending: NotifyPayload[] = [];
-      const inst = await tx.workflowInstance.findFirst({
-        where: { id: instanceId, tenantId },
-        include: {
-          definition: { include: { steps: { orderBy: { stepNumber: 'asc' } } } },
-        },
-      });
-      if (!inst) throw new NotFoundException('WFL_INSTANCE_NOT_FOUND');
-      if (inst.status !== 'running')
-        throw new ConflictException('WFL_INSTANCE_NOT_RUNNING');
-
-      const step = inst.definition.steps.find(
-        (s) => s.stepNumber === inst.currentStep,
-      );
-      if (!step) throw new ConflictException('WFL_STEP_MISSING');
-      if (!this.isEligible(step, userId, myRoleIds)) {
-        throw new ForbiddenException('WFL_NOT_AN_APPROVER');
-      }
-
-      // Record the action against the step we observed.
-      await tx.workflowAction.create({
-        data: {
-          instanceId: inst.id,
-          stepNumber: inst.currentStep,
-          action,
-          actorId: userId,
-          comment: dto.comment ?? null,
-        },
-      });
-
-      if (action === 'rejected') {
-        // Race-safe claim — pinning currentStep refuses a stale-step reject
-        // when another approver advanced the instance meanwhile.
-        const claimed = await tx.workflowInstance.updateMany({
-          where: {
-            id: inst.id,
-            tenantId,
-            status: 'running',
-            currentStep: inst.currentStep,
+    const { instance, payloads } = await this.prisma.$transaction(
+      async (tx) => {
+        const pending: NotifyPayload[] = [];
+        const inst = await tx.workflowInstance.findFirst({
+          where: { id: instanceId, tenantId },
+          include: {
+            definition: {
+              include: { steps: { orderBy: { stepNumber: 'asc' } } },
+            },
           },
-          data: { status: 'rejected' },
         });
-        if (claimed.count === 0)
-          throw new ConflictException('WFL_INSTANCE_ADVANCED');
-        pending.push(
-          this.requesterNotification(
-            inst,
-            `Request rejected at step ${inst.currentStep}`,
-            'alert',
-          ),
+        if (!inst) throw new NotFoundException('WFL_INSTANCE_NOT_FOUND');
+        if (inst.status !== 'running')
+          throw new ConflictException('WFL_INSTANCE_NOT_RUNNING');
+
+        const step = inst.definition.steps.find(
+          (s) => s.stepNumber === inst.currentStep,
         );
-        return {
-          instance: await tx.workflowInstance.findFirst({ where: { id: inst.id } }),
-          payloads: pending,
-        };
-      }
+        if (!step) throw new ConflictException('WFL_STEP_MISSING');
+        if (!this.isEligible(step, userId, myRoleIds)) {
+          throw new ForbiddenException('WFL_NOT_AN_APPROVER');
+        }
 
-      const steps = inst.definition.steps;
-      const maxStep = steps.length;
-      let current = inst.currentStep;
+        // Record the action against the step we observed.
+        await tx.workflowAction.create({
+          data: {
+            instanceId: inst.id,
+            stepNumber: inst.currentStep,
+            action,
+            actorId: userId,
+            comment: dto.comment ?? null,
+          },
+        });
 
-      // Advance step by step; `notification` steps execute (queue their push)
-      // and auto-advance so the instance never parks on a non-approval step.
-      // `condition`/`action` step types are not accepted yet — TODO(ADR-008).
-      for (;;) {
-        if (current >= maxStep) {
+        if (action === 'rejected') {
+          // Race-safe claim — pinning currentStep refuses a stale-step reject
+          // when another approver advanced the instance meanwhile.
           const claimed = await tx.workflowInstance.updateMany({
-            where: { id: inst.id, tenantId, status: 'running', currentStep: current },
-            data: { status: 'completed' },
+            where: {
+              id: inst.id,
+              tenantId,
+              status: 'running',
+              currentStep: inst.currentStep,
+            },
+            data: { status: 'rejected' },
           });
           if (claimed.count === 0)
             throw new ConflictException('WFL_INSTANCE_ADVANCED');
           pending.push(
-            this.requesterNotification(inst, 'Request fully approved', 'info'),
+            this.requesterNotification(
+              inst,
+              `Request rejected at step ${inst.currentStep}`,
+              'alert',
+            ),
+          );
+          return {
+            instance: await tx.workflowInstance.findFirst({
+              where: { id: inst.id },
+            }),
+            payloads: pending,
+          };
+        }
+
+        const steps = inst.definition.steps;
+        const maxStep = steps.length;
+        let current = inst.currentStep;
+
+        // Advance step by step; `notification` steps execute (queue their push)
+        // and auto-advance so the instance never parks on a non-approval step.
+        // `condition`/`action` step types are not accepted yet — TODO(ADR-008).
+        for (;;) {
+          if (current >= maxStep) {
+            const claimed = await tx.workflowInstance.updateMany({
+              where: {
+                id: inst.id,
+                tenantId,
+                status: 'running',
+                currentStep: current,
+              },
+              data: { status: 'completed' },
+            });
+            if (claimed.count === 0)
+              throw new ConflictException('WFL_INSTANCE_ADVANCED');
+            pending.push(
+              this.requesterNotification(
+                inst,
+                'Request fully approved',
+                'info',
+              ),
+            );
+            break;
+          }
+
+          const next = current + 1;
+          const claimed = await tx.workflowInstance.updateMany({
+            where: {
+              id: inst.id,
+              tenantId,
+              status: 'running',
+              currentStep: current,
+            },
+            data: { currentStep: next },
+          });
+          if (claimed.count === 0)
+            throw new ConflictException('WFL_INSTANCE_ADVANCED');
+
+          const nextStep = steps.find((s) => s.stepNumber === next)!;
+          if (nextStep.stepType === 'notification') {
+            pending.push(
+              this.requesterNotification(
+                inst,
+                `Workflow notification: ${nextStep.name}`,
+                'info',
+              ),
+            );
+            current = next;
+            continue;
+          }
+
+          pending.push(
+            ...(await this.collectStepApproverNotifications(
+              tx,
+              inst,
+              steps,
+              next,
+            )),
           );
           break;
         }
 
-        const next = current + 1;
-        const claimed = await tx.workflowInstance.updateMany({
-          where: { id: inst.id, tenantId, status: 'running', currentStep: current },
-          data: { currentStep: next },
-        });
-        if (claimed.count === 0)
-          throw new ConflictException('WFL_INSTANCE_ADVANCED');
-
-        const nextStep = steps.find((s) => s.stepNumber === next)!;
-        if (nextStep.stepType === 'notification') {
-          pending.push(
-            this.requesterNotification(
-              inst,
-              `Workflow notification: ${nextStep.name}`,
-              'info',
-            ),
-          );
-          current = next;
-          continue;
-        }
-
-        pending.push(
-          ...(await this.collectStepApproverNotifications(tx, inst, steps, next)),
-        );
-        break;
-      }
-
-      return {
-        instance: await tx.workflowInstance.findFirst({ where: { id: inst.id } }),
-        payloads: pending,
-      };
-    });
+        return {
+          instance: await tx.workflowInstance.findFirst({
+            where: { id: inst.id },
+          }),
+          payloads: pending,
+        };
+      },
+    );
 
     // Deliver only after the transaction committed — no phantom tasks.
     await this.deliver(tenantId, payloads);
@@ -339,7 +371,7 @@ export class WorkflowEngineService {
 
   /** Builds (does NOT send) the approver notifications for a step. */
   private async collectStepApproverNotifications(
-    tx: { userRole: any },
+    tx: Prisma.TransactionClient,
     instance: { id: string; entityType: string; entityId: string },
     steps: StepRow[],
     stepNumber: number,
@@ -355,7 +387,7 @@ export class WorkflowEngineService {
         where: { roleId: step.approverId },
         select: { userId: true },
       });
-      holders.forEach((h: { userId: string }) => targets.add(h.userId));
+      holders.forEach((h) => targets.add(h.userId));
     }
     // manager/department_head: no addressable user list yet — skip push.
 
@@ -371,7 +403,12 @@ export class WorkflowEngineService {
   }
 
   private requesterNotification(
-    instance: { id: string; requestedBy: string; entityType: string; entityId: string },
+    instance: {
+      id: string;
+      requestedBy: string;
+      entityType: string;
+      entityId: string;
+    },
     title: string,
     category: 'info' | 'alert',
   ): NotifyPayload {

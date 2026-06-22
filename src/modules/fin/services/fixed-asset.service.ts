@@ -77,7 +77,10 @@ export class FixedAssetService {
         },
       });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
         throw new ConflictException('FIN_ASSET_CODE_EXISTS');
       }
       throw e;
@@ -90,7 +93,9 @@ export class FixedAssetService {
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
+        ...(dto.departmentId !== undefined && {
+          departmentId: dto.departmentId,
+        }),
         ...(dto.branchId !== undefined && { branchId: dto.branchId }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
       },
@@ -105,7 +110,9 @@ export class FixedAssetService {
       where: { id, tenantId, status: 'draft', deletedAt: null },
       data: {
         status: 'in_use',
-        inServiceDate: dto.inServiceDate ? new Date(dto.inServiceDate) : new Date(),
+        inServiceDate: dto.inServiceDate
+          ? new Date(dto.inServiceDate)
+          : new Date(),
       },
     });
     if (count === 0) throw new ConflictException('FIN_ASSET_NOT_DRAFT');
@@ -121,7 +128,9 @@ export class FixedAssetService {
       data: {
         status: 'transferred',
         ...(dto.branchId !== undefined && { branchId: dto.branchId }),
-        ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
+        ...(dto.departmentId !== undefined && {
+          departmentId: dto.departmentId,
+        }),
       },
     });
   }
@@ -133,7 +142,12 @@ export class FixedAssetService {
    *   Dr 811  loss   OR   Cr 711 gain  (the balancing figure vs net book value)
    *   Cr <asset GL account> acquisition cost
    */
-  async dispose(tenantId: string, id: string, userId: string, dto: DisposeAssetDto) {
+  async dispose(
+    tenantId: string,
+    id: string,
+    userId: string,
+    dto: DisposeAssetDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const asset = await tx.fixedAsset.findFirst({ where: { id, tenantId } });
       if (!asset) throw new NotFoundException('FIN_ASSET_NOT_FOUND');
@@ -153,17 +167,42 @@ export class FixedAssetService {
         creditAmount: Prisma.Decimal;
       }> = [];
       if (accumulated.gt(0)) {
-        entries.push({ accountCode: ACCUM_DEPRECIATION_ACC, description: 'Remove accumulated depreciation', debitAmount: accumulated, creditAmount: ZERO });
+        entries.push({
+          accountCode: ACCUM_DEPRECIATION_ACC,
+          description: 'Remove accumulated depreciation',
+          debitAmount: accumulated,
+          creditAmount: ZERO,
+        });
       }
       if (proceeds.gt(0)) {
-        entries.push({ accountCode: CASH_ACC, description: 'Disposal proceeds', debitAmount: proceeds, creditAmount: ZERO });
+        entries.push({
+          accountCode: CASH_ACC,
+          description: 'Disposal proceeds',
+          debitAmount: proceeds,
+          creditAmount: ZERO,
+        });
       }
       if (gainLoss.lt(0)) {
-        entries.push({ accountCode: OTHER_EXPENSE_ACC, description: 'Loss on disposal', debitAmount: gainLoss.abs(), creditAmount: ZERO });
+        entries.push({
+          accountCode: OTHER_EXPENSE_ACC,
+          description: 'Loss on disposal',
+          debitAmount: gainLoss.abs(),
+          creditAmount: ZERO,
+        });
       } else if (gainLoss.gt(0)) {
-        entries.push({ accountCode: OTHER_INCOME_ACC, description: 'Gain on disposal', debitAmount: ZERO, creditAmount: gainLoss });
+        entries.push({
+          accountCode: OTHER_INCOME_ACC,
+          description: 'Gain on disposal',
+          debitAmount: ZERO,
+          creditAmount: gainLoss,
+        });
       }
-      entries.push({ accountCode: asset.accountCode, description: 'Remove asset cost', debitAmount: ZERO, creditAmount: cost });
+      entries.push({
+        accountCode: asset.accountCode,
+        description: 'Remove asset cost',
+        debitAmount: ZERO,
+        creditAmount: cost,
+      });
 
       // Always post the disposal journal so the GL has a full audit trail.
       // entries always contains at least the Cr <assetCode> line; every valid
@@ -180,14 +219,19 @@ export class FixedAssetService {
       }
 
       const { count } = await tx.fixedAsset.updateMany({
-        where: { id, tenantId, status: { in: ['in_use', 'transferred', 'draft'] } },
+        where: {
+          id,
+          tenantId,
+          status: { in: ['in_use', 'transferred', 'draft'] },
+        },
         data: {
           status: 'disposed',
           disposalDate: new Date(dto.disposalDate),
           disposalProceeds: proceeds,
         },
       });
-      if (count === 0) throw new ConflictException('FIN_ASSET_ALREADY_DISPOSED');
+      if (count === 0)
+        throw new ConflictException('FIN_ASSET_ALREADY_DISPOSED');
 
       return tx.fixedAsset.findFirst({ where: { id, tenantId } });
     });
@@ -195,7 +239,11 @@ export class FixedAssetService {
 
   // ── Depreciation run (manual period trigger; cron deferred) ───
 
-  async runDepreciation(tenantId: string, userId: string, dto: RunDepreciationDto) {
+  async runDepreciation(
+    tenantId: string,
+    userId: string,
+    dto: RunDepreciationDto,
+  ) {
     const journalDate = new Date(Date.UTC(dto.year, dto.month - 1, 28));
 
     return this.prisma.$transaction(async (tx) => {
@@ -203,7 +251,11 @@ export class FixedAssetService {
         where: { tenantId, status: 'in_use', deletedAt: null },
       });
 
-      const results: Array<{ assetId: string; amount: Prisma.Decimal; expenseAccountCode: string }> = [];
+      const results: Array<{
+        assetId: string;
+        amount: Prisma.Decimal;
+        expenseAccountCode: string;
+      }> = [];
 
       for (const asset of assets) {
         // Skip if this period was already depreciated for this asset.
@@ -229,7 +281,9 @@ export class FixedAssetService {
           acquisitionCost: asset.acquisitionCost,
           residualValue: asset.residualValue,
           usefulLifeMonths: asset.usefulLifeMonths,
-          method: asset.depreciationMethod as 'straight_line' | 'declining_balance',
+          method: asset.depreciationMethod as
+            | 'straight_line'
+            | 'declining_balance',
           accumulatedDepreciation: asset.accumulatedDepreciation,
           periodsElapsed,
         });
@@ -250,18 +304,31 @@ export class FixedAssetService {
           where: { id: asset.id },
           data: { accumulatedDepreciation: newAccumulated },
         });
-        results.push({ assetId: asset.id, amount, expenseAccountCode: asset.expenseAccountCode });
+        results.push({
+          assetId: asset.id,
+          amount,
+          expenseAccountCode: asset.expenseAccountCode,
+        });
       }
 
       if (results.length === 0) {
-        return { year: dto.year, month: dto.month, assetsDepreciated: 0, totalDepreciation: 0, journalBatchId: null };
+        return {
+          year: dto.year,
+          month: dto.month,
+          assetsDepreciated: 0,
+          totalDepreciation: 0,
+          journalBatchId: null,
+        };
       }
 
       // One posted journal for the whole run, grouped by expense account.
       const total = results.reduce((s, r) => s.add(r.amount), ZERO);
       const byExpense = new Map<string, Prisma.Decimal>();
       for (const r of results) {
-        byExpense.set(r.expenseAccountCode, (byExpense.get(r.expenseAccountCode) ?? ZERO).add(r.amount));
+        byExpense.set(
+          r.expenseAccountCode,
+          (byExpense.get(r.expenseAccountCode) ?? ZERO).add(r.amount),
+        );
       }
       const entries = [
         ...[...byExpense.entries()].map(([accountCode, amt]) => ({
@@ -287,7 +354,12 @@ export class FixedAssetService {
 
       // Stamp the journal id on this period's entries.
       await tx.assetDepreciationEntry.updateMany({
-        where: { tenantId, year: dto.year, month: dto.month, assetId: { in: results.map((r) => r.assetId) } },
+        where: {
+          tenantId,
+          year: dto.year,
+          month: dto.month,
+          assetId: { in: results.map((r) => r.assetId) },
+        },
         data: { journalBatchId: batch.id },
       });
 
@@ -303,13 +375,24 @@ export class FixedAssetService {
 
   // ── Queries ───────────────────────────────────────────────────
 
-  async findAll(tenantId: string, query: FixedAssetQueryDto, userRoles: string[]) {
+  async findAll(
+    tenantId: string,
+    query: FixedAssetQueryDto,
+    userRoles: string[],
+  ) {
     const select = FieldSelector.buildPrismaSelect(
       query.fields,
       userRoles,
       FIXED_ASSET_FIELD_CONFIG,
     );
-    const { page = 1, limit = 20, sortOrder = 'desc', status, branchId, search } = query;
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      status,
+      branchId,
+      search,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, ASSET_SORTABLE);
 
     const where: Prisma.FixedAssetWhereInput = {

@@ -11,7 +11,12 @@ import { TicketService } from './services/ticket.service.js';
 
 @Module({
   controllers: [LeadController, OpportunityController, TicketController],
-  providers: [LeadService, OpportunityService, TicketService, DocumentSequenceService],
+  providers: [
+    LeadService,
+    OpportunityService,
+    TicketService,
+    DocumentSequenceService,
+  ],
   exports: [LeadService, OpportunityService, TicketService],
 })
 export class CrmModule {}

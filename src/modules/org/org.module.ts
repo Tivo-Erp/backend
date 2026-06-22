@@ -8,12 +8,7 @@ import { BranchRepository } from './repositories/branch.repository.js';
 
 @Module({
   controllers: [TenantController, BranchController],
-  providers: [
-    TenantService,
-    BranchService,
-    TenantRepository,
-    BranchRepository,
-  ],
+  providers: [TenantService, BranchService, TenantRepository, BranchRepository],
   exports: [TenantService],
 })
 export class OrgModule {}

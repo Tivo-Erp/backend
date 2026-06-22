@@ -135,12 +135,18 @@ export class ReportMaterialConsumptionDto {
 }
 
 export class ReportOutputDto {
-  @ApiProperty({ example: 20, description: 'Good units produced (added to stock)' })
+  @ApiProperty({
+    example: 20,
+    description: 'Good units produced (added to stock)',
+  })
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0.0001)
   producedQty: number;
 
-  @ApiPropertyOptional({ example: 2, description: 'Rejected units (scrapped, not stocked)' })
+  @ApiPropertyOptional({
+    example: 2,
+    description: 'Rejected units (scrapped, not stocked)',
+  })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
@@ -175,10 +181,19 @@ export class WorkOrderQueryDto extends PaginatedFieldsQueryDto {
   warehouseId?: string;
 
   @ApiPropertyOptional({
-    description: 'draft, planned, released, in_progress, completed, closed, cancelled',
+    description:
+      'draft, planned, released, in_progress, completed, closed, cancelled',
   })
   @IsOptional()
-  @IsIn(['draft', 'planned', 'released', 'in_progress', 'completed', 'closed', 'cancelled'])
+  @IsIn([
+    'draft',
+    'planned',
+    'released',
+    'in_progress',
+    'completed',
+    'closed',
+    'cancelled',
+  ])
   status?: string;
 
   @ApiPropertyOptional({ description: 'Search by WO number' })

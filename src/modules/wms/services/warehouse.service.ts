@@ -31,8 +31,16 @@ export class WarehouseService {
     return this.repo.createWarehouse(tenantId, dto);
   }
 
-  async findAllWarehouses(tenantId: string, userRoles: string[], fields?: string) {
-    const select = FieldSelector.buildPrismaSelect(fields, userRoles, WAREHOUSE_FIELD_CONFIG);
+  async findAllWarehouses(
+    tenantId: string,
+    userRoles: string[],
+    fields?: string,
+  ) {
+    const select = FieldSelector.buildPrismaSelect(
+      fields,
+      userRoles,
+      WAREHOUSE_FIELD_CONFIG,
+    );
     return this.repo.findAllWarehouses(tenantId, select);
   }
 
@@ -63,13 +71,27 @@ export class WarehouseService {
     return this.repo.createZone(warehouseId, dto);
   }
 
-  async findZones(tenantId: string, warehouseId: string, userRoles: string[], fields?: string) {
+  async findZones(
+    tenantId: string,
+    warehouseId: string,
+    userRoles: string[],
+    fields?: string,
+  ) {
     await this.repo.assertWarehouseOwnership(tenantId, warehouseId);
-    const select = FieldSelector.buildPrismaSelect(fields, userRoles, ZONE_FIELD_CONFIG);
+    const select = FieldSelector.buildPrismaSelect(
+      fields,
+      userRoles,
+      ZONE_FIELD_CONFIG,
+    );
     return this.repo.findZones(warehouseId, select);
   }
 
-  async updateZone(tenantId: string, warehouseId: string, zoneId: string, dto: UpdateZoneDto) {
+  async updateZone(
+    tenantId: string,
+    warehouseId: string,
+    zoneId: string,
+    dto: UpdateZoneDto,
+  ) {
     await this.repo.assertWarehouseOwnership(tenantId, warehouseId);
     await this.repo.assertZoneOwnership(warehouseId, zoneId);
     return this.repo.updateZone(zoneId, dto);
@@ -83,7 +105,12 @@ export class WarehouseService {
 
   // ── Bin ──────────────────────────────────────────────────────
 
-  async createBin(tenantId: string, warehouseId: string, zoneId: string, dto: CreateBinDto) {
+  async createBin(
+    tenantId: string,
+    warehouseId: string,
+    zoneId: string,
+    dto: CreateBinDto,
+  ) {
     await this.repo.assertWarehouseOwnership(tenantId, warehouseId);
     await this.repo.assertZoneOwnership(warehouseId, zoneId);
     const exists = await this.repo.findBinByBarcode(zoneId, dto.barcode);
@@ -100,7 +127,11 @@ export class WarehouseService {
   ) {
     await this.repo.assertWarehouseOwnership(tenantId, warehouseId);
     await this.repo.assertZoneOwnership(warehouseId, zoneId);
-    const select = FieldSelector.buildPrismaSelect(fields, userRoles, BIN_FIELD_CONFIG);
+    const select = FieldSelector.buildPrismaSelect(
+      fields,
+      userRoles,
+      BIN_FIELD_CONFIG,
+    );
     return this.repo.findBins(zoneId, select);
   }
 
@@ -118,7 +149,12 @@ export class WarehouseService {
     return this.repo.updateBin(binId, dto);
   }
 
-  async deleteBin(tenantId: string, warehouseId: string, zoneId: string, binId: string) {
+  async deleteBin(
+    tenantId: string,
+    warehouseId: string,
+    zoneId: string,
+    binId: string,
+  ) {
     await this.repo.assertWarehouseOwnership(tenantId, warehouseId);
     await this.repo.assertZoneOwnership(warehouseId, zoneId);
     const bin = await this.repo.findBinById(zoneId, binId);

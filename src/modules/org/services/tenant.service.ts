@@ -10,18 +10,64 @@ import { BusinessException } from '../../../common/exceptions/business.exception
 import { CHART_OF_ACCOUNTS_VN } from '../../fin/data/chart-of-accounts-vn.js';
 
 const DEFAULT_DOC_TYPES = [
-  'PO', 'PR', 'SO', 'SQ', 'INV', 'CN', 'DN', 'GRN', 'WO', 'QC', 'NCR', 'PAY', 'JB', 'TKT',
-  'CUS', 'PRJ', 'AST',
+  'PO',
+  'PR',
+  'SO',
+  'SQ',
+  'INV',
+  'CN',
+  'DN',
+  'GRN',
+  'WO',
+  'QC',
+  'NCR',
+  'PAY',
+  'JB',
+  'TKT',
+  'CUS',
+  'PRJ',
+  'AST',
+  'SHP',
 ];
 
 /** Default CRM sales pipeline stages seeded per tenant (SRS_07 §1.1). */
 const DEFAULT_PIPELINE_STAGES = [
   { name: 'New', sortOrder: 1, probabilityPct: 0, isWon: false, isLost: false },
-  { name: 'Contacted', sortOrder: 2, probabilityPct: 20, isWon: false, isLost: false },
-  { name: 'Qualified', sortOrder: 3, probabilityPct: 40, isWon: false, isLost: false },
-  { name: 'Proposal', sortOrder: 4, probabilityPct: 60, isWon: false, isLost: false },
-  { name: 'Negotiation', sortOrder: 5, probabilityPct: 80, isWon: false, isLost: false },
-  { name: 'Won', sortOrder: 6, probabilityPct: 100, isWon: true, isLost: false },
+  {
+    name: 'Contacted',
+    sortOrder: 2,
+    probabilityPct: 20,
+    isWon: false,
+    isLost: false,
+  },
+  {
+    name: 'Qualified',
+    sortOrder: 3,
+    probabilityPct: 40,
+    isWon: false,
+    isLost: false,
+  },
+  {
+    name: 'Proposal',
+    sortOrder: 4,
+    probabilityPct: 60,
+    isWon: false,
+    isLost: false,
+  },
+  {
+    name: 'Negotiation',
+    sortOrder: 5,
+    probabilityPct: 80,
+    isWon: false,
+    isLost: false,
+  },
+  {
+    name: 'Won',
+    sortOrder: 6,
+    probabilityPct: 100,
+    isWon: true,
+    isLost: false,
+  },
   { name: 'Lost', sortOrder: 7, probabilityPct: 0, isWon: false, isLost: true },
 ];
 
@@ -180,7 +226,11 @@ export class TenantService {
     });
   }
 
-  async getProfile(tenantId: string, queryFields: string | undefined, userRoles: string[]) {
+  async getProfile(
+    tenantId: string,
+    queryFields: string | undefined,
+    userRoles: string[],
+  ) {
     const tenant = await this.tenantRepository.findWithSubscription(tenantId);
     if (!tenant) {
       throw new BusinessException(
@@ -192,7 +242,7 @@ export class TenantService {
 
     // Build full data object first (since tenant profile is a single resource with computed fields)
     const subscription = tenant.subscriptions[0];
-    const fullData: Record<string, any> = {
+    const fullData: Record<string, unknown> = {
       id: tenant.id,
       slug: tenant.slug,
       name: tenant.name,
@@ -216,7 +266,10 @@ export class TenantService {
     }
 
     // Resolve which fields to return
-    const allowed = FieldSelector.resolveAllowedFields(userRoles, TENANT_FIELD_CONFIG);
+    const allowed = FieldSelector.resolveAllowedFields(
+      userRoles,
+      TENANT_FIELD_CONFIG,
+    );
     const fieldsToReturn = queryFields
       ? queryFields.split(',').map((f) => f.trim())
       : TENANT_FIELD_CONFIG.defaultFields;
@@ -234,8 +287,8 @@ export class TenantService {
     }
 
     // Build response with only requested fields
-    const result: Record<string, any> = {};
-    const subscriptionObj: Record<string, any> = {};
+    const result: Record<string, unknown> = {};
+    const subscriptionObj: Record<string, unknown> = {};
     let hasSubscription = false;
 
     for (const field of fieldsToReturn) {

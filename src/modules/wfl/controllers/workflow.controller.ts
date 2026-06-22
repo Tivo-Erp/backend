@@ -107,7 +107,10 @@ export class WorkflowDefinitionController {
   @RequirePermissions('wfl:instance:start')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Start a workflow instance for an entity' })
-  @ApiResponse({ status: 409, description: 'Definition inactive or instance already running' })
+  @ApiResponse({
+    status: 409,
+    description: 'Definition inactive or instance already running',
+  })
   start(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,
@@ -140,7 +143,10 @@ export class WorkflowTaskController {
   @RequirePermissions('wfl:task:action')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve the current step of a workflow instance' })
-  @ApiResponse({ status: 403, description: 'Not an approver for the current step' })
+  @ApiResponse({
+    status: 403,
+    description: 'Not an approver for the current step',
+  })
   @ApiResponse({ status: 409, description: 'Instance not running' })
   approve(
     @CurrentTenant() tenantId: string,
@@ -156,7 +162,10 @@ export class WorkflowTaskController {
   @RequirePermissions('wfl:task:action')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject a workflow instance' })
-  @ApiResponse({ status: 403, description: 'Not an approver for the current step' })
+  @ApiResponse({
+    status: 403,
+    description: 'Not an approver for the current step',
+  })
   @ApiResponse({ status: 409, description: 'Instance not running' })
   reject(
     @CurrentTenant() tenantId: string,

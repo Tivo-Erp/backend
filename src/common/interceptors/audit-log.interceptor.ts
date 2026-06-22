@@ -5,22 +5,28 @@ import {
   CallHandler,
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
+import type { FastifyRequest } from 'fastify';
 import { AuditLogService } from '../../modules/uam/services/audit-log.service.js';
 import { JwtPayload } from '../../modules/auth/interfaces/jwt-payload.interface.js';
 
 const WRITE_METHODS = ['POST', 'PATCH', 'PUT', 'DELETE'];
 
+/** Request augmented by the auth layer with the decoded JWT payload. */
+interface AuthedRequest extends FastifyRequest {
+  user?: JwtPayload;
+}
+
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
   constructor(private readonly auditLogService: AuditLogService) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    const request = context.switchToHttp().getRequest<AuthedRequest>();
     const method = request.method;
 
     if (!WRITE_METHODS.includes(method)) return next.handle();
 
-    const user = request.user as JwtPayload | undefined;
+    const user = request.user;
     if (!user?.tenantId) return next.handle();
 
     const controllerName = context.getClass().name;
@@ -29,11 +35,20 @@ export class AuditLogInterceptor implements NestInterceptor {
     const action = `${method} ${handlerName}`;
 
     return next.handle().pipe(
-      tap((responseData) => {
+      tap((responseData: unknown) => {
+        const params = request.params as { id?: string } | undefined;
+        const responseId =
+          typeof responseData === 'object' && responseData !== null
+            ? (responseData as Record<string, unknown>).id
+            : undefined;
         const entityId =
-          request.params?.id ||
-          (responseData as Record<string, unknown>)?.id ||
-          undefined;
+          typeof (params?.id ?? responseId) === 'string'
+            ? ((params?.id ?? responseId) as string)
+            : undefined;
+        const body =
+          typeof request.body === 'object' && request.body !== null
+            ? (request.body as Record<string, unknown>)
+            : null;
 
         this.auditLogService
           .log({
@@ -42,8 +57,8 @@ export class AuditLogInterceptor implements NestInterceptor {
             action,
             module,
             entityType: controllerName.replace('Controller', ''),
-            entityId: entityId as string | undefined,
-            changes: method === 'DELETE' ? null : request.body,
+            entityId,
+            changes: method === 'DELETE' ? null : body,
             ipAddress: request.ip,
             userAgent: request.headers['user-agent'],
           })

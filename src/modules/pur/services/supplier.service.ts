@@ -80,7 +80,7 @@ export class SupplierService {
     });
     if (!supplier) throw new NotFoundException('PUR_SUPPLIER_NOT_FOUND');
 
-    if (dto.code && dto.code !== (supplier as any).code) {
+    if (dto.code && dto.code !== supplier.code) {
       const conflict = await this.repo.findByCode(tenantId, dto.code);
       if (conflict && conflict.id !== id)
         throw new ConflictException('PUR_SUPPLIER_CODE_DUPLICATE');

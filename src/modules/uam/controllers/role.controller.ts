@@ -9,10 +9,22 @@ import {
   Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiBody, ApiParam, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiBody,
+  ApiParam,
+  ApiResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { RoleService } from '../services/role.service.js';
 import { CreateRoleDto, UpdateRoleDto } from '../dto/role.dto.js';
-import { CurrentTenant, CurrentUserRoles, RequirePermissions } from '../../../common/decorators/index.js';
+import {
+  CurrentTenant,
+  CurrentUserRoles,
+  RequirePermissions,
+} from '../../../common/decorators/index.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { ROLE_FIELD_CONFIG } from '../config/role.field-config.js';
 import { FieldsQueryDto } from '../../../common/dto/fields-query.dto.js';
@@ -25,20 +37,26 @@ export class RoleController {
 
   @Post()
   @RequirePermissions('uam:role:create')
-  @ApiOperation({ summary: 'Create Role', description: 'Create a custom role with assigned permissions.' })
+  @ApiOperation({
+    summary: 'Create Role',
+    description: 'Create a custom role with assigned permissions.',
+  })
   @ApiBody({ type: CreateRoleDto })
   @ApiResponse({ status: 201, description: 'Role created' })
-  @ApiResponse({ status: 409, description: 'Role name already exists in tenant' })
-  async create(
-    @CurrentTenant() tenantId: string,
-    @Body() dto: CreateRoleDto,
-  ) {
+  @ApiResponse({
+    status: 409,
+    description: 'Role name already exists in tenant',
+  })
+  async create(@CurrentTenant() tenantId: string, @Body() dto: CreateRoleDto) {
     return this.roleService.create(tenantId, dto);
   }
 
   @Get()
   @RequirePermissions('uam:role:read')
-  @ApiOperation({ summary: 'List Roles', description: 'List roles with Sparse Fieldsets support.' })
+  @ApiOperation({
+    summary: 'List Roles',
+    description: 'List roles with Sparse Fieldsets support.',
+  })
   @ApiQuery({
     name: 'fields',
     required: false,
@@ -56,7 +74,11 @@ export class RoleController {
 
   @Patch(':id')
   @RequirePermissions('uam:role:update')
-  @ApiOperation({ summary: 'Update Role', description: 'Update role name/description/permissions. System roles cannot be updated.' })
+  @ApiOperation({
+    summary: 'Update Role',
+    description:
+      'Update role name/description/permissions. System roles cannot be updated.',
+  })
   @ApiParam({ name: 'id', description: 'Role UUID', format: 'uuid' })
   @ApiBody({ type: UpdateRoleDto })
   @ApiResponse({ status: 200, description: 'Role updated' })
@@ -72,7 +94,10 @@ export class RoleController {
 
   @Delete(':id')
   @RequirePermissions('uam:role:delete')
-  @ApiOperation({ summary: 'Delete Role', description: 'Delete a custom role. System roles cannot be deleted.' })
+  @ApiOperation({
+    summary: 'Delete Role',
+    description: 'Delete a custom role. System roles cannot be deleted.',
+  })
   @ApiParam({ name: 'id', description: 'Role UUID', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Role deleted' })
   @ApiResponse({ status: 404, description: 'Role not found' })

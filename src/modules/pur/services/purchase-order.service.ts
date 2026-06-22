@@ -135,7 +135,7 @@ export class PurchaseOrderService {
         await this.requireActiveWarehouse(tx, tenantId, dto.warehouseId);
       if (dto.branchId) await this.requireBranch(tx, tenantId, dto.branchId);
 
-      const data: Record<string, any> = {
+      const data: Prisma.PurchaseOrderUncheckedUpdateInput = {
         ...(dto.supplierId !== undefined && { supplierId: dto.supplierId }),
         ...(dto.warehouseId !== undefined && { warehouseId: dto.warehouseId }),
         ...(dto.branchId !== undefined && { branchId: dto.branchId }),
@@ -191,7 +191,7 @@ export class PurchaseOrderService {
   // ── Reference validations ─────────────────────────────────────
 
   private async requireActiveSupplier(
-    tx: any,
+    tx: Prisma.TransactionClient,
     tenantId: string,
     supplierId: string,
   ) {
@@ -205,7 +205,7 @@ export class PurchaseOrderService {
   }
 
   private async requireActiveWarehouse(
-    tx: any,
+    tx: Prisma.TransactionClient,
     tenantId: string,
     warehouseId: string,
   ) {
@@ -218,7 +218,11 @@ export class PurchaseOrderService {
     return warehouse;
   }
 
-  private async requireBranch(tx: any, tenantId: string, branchId: string) {
+  private async requireBranch(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    branchId: string,
+  ) {
     const branch = await tx.branch.findFirst({
       where: { id: branchId, tenantId },
       select: { id: true },
@@ -260,7 +264,7 @@ export class PurchaseOrderService {
   }
 
   private async computeLines(
-    tx: any,
+    tx: Prisma.TransactionClient,
     tenantId: string,
     lines: CreatePOLineDto[],
   ): Promise<ComputedLine[]> {
@@ -333,13 +337,16 @@ export class PurchaseOrderService {
     } = query;
     const sortBy = safeSortBy(query.sortBy, PO_SORTABLE_FIELDS);
 
-    const where: any = {
+    const where: Prisma.PurchaseOrderWhereInput = {
       tenantId,
       deletedAt: null,
       ...(supplierId && { supplierId }),
       ...(warehouseId && { warehouseId }),
       ...(status && { status }),
       ...(search && { poNumber: { contains: search, mode: 'insensitive' } }),
+    };
+    const orderBy: Prisma.PurchaseOrderOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
     };
 
     const [data, total] = await Promise.all([
@@ -348,7 +355,7 @@ export class PurchaseOrderService {
         select,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
       }),
       this.prisma.purchaseOrder.count({ where }),
     ]);

@@ -26,7 +26,9 @@ export interface DepreciationInput {
  * In all cases the amount is capped so accumulated depreciation never exceeds
  * the depreciable base (cost - residual); a fully-depreciated asset returns 0.
  */
-export function calcPeriodDepreciation(input: DepreciationInput): Prisma.Decimal {
+export function calcPeriodDepreciation(
+  input: DepreciationInput,
+): Prisma.Decimal {
   const cost = dec(input.acquisitionCost);
   const residual = dec(input.residualValue);
   const accumulated = dec(input.accumulatedDepreciation);
@@ -44,7 +46,10 @@ export function calcPeriodDepreciation(input: DepreciationInput): Prisma.Decimal
     const bookValue = cost.sub(accumulated);
     const monthlyDeclining = bookValue.mul(annualRate).div(12);
 
-    const remainingMonths = Math.max(1, input.usefulLifeMonths - input.periodsElapsed);
+    const remainingMonths = Math.max(
+      1,
+      input.usefulLifeMonths - input.periodsElapsed,
+    );
     const straightLineFromHere = bookValue.sub(residual).div(remainingMonths);
 
     // Switch to straight-line once it would depreciate faster.

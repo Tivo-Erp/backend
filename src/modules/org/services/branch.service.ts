@@ -1,7 +1,10 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { BranchRepository } from '../repositories/branch.repository.js';
 import { CreateBranchDto, UpdateBranchDto } from '../dto/branch.dto.js';
-import { PaginationQueryDto, PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
+import {
+  PaginationQueryDto,
+  PaginatedResponseDto,
+} from '../../../common/dto/pagination.dto.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { BRANCH_FIELD_CONFIG } from '../config/branch.field-config.js';
 import { BusinessException } from '../../../common/exceptions/business.exception.js';
@@ -39,7 +42,11 @@ export class BranchService {
 
   async findAll(
     tenantId: string,
-    query: PaginationQueryDto & { isActive?: boolean; search?: string; fields?: string },
+    query: PaginationQueryDto & {
+      isActive?: boolean;
+      search?: string;
+      fields?: string;
+    },
     userRoles: string[],
   ) {
     const prismaSelect = FieldSelector.buildPrismaSelect(
@@ -73,8 +80,7 @@ export class BranchService {
     }
 
     if (dto.isHeadquarters) {
-      const existingHQ =
-        await this.branchRepository.findHeadquarters(tenantId);
+      const existingHQ = await this.branchRepository.findHeadquarters(tenantId);
       if (existingHQ && existingHQ.id !== id) {
         throw new BusinessException(
           'ORG_BRANCH_HQ_EXISTS',

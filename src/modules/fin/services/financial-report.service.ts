@@ -22,6 +22,12 @@ interface PostedEntry {
   creditAmount: Prisma.Decimal;
 }
 
+export interface BalanceSheetLine {
+  account: string;
+  name: string;
+  balance: number;
+}
+
 @Injectable()
 export class FinancialReportService {
   constructor(private readonly prisma: PrismaService) {}
@@ -81,7 +87,10 @@ export class FinancialReportService {
       this.accountMap(tenantId),
     ]);
 
-    const byAccount = new Map<string, { debit: Prisma.Decimal; credit: Prisma.Decimal }>();
+    const byAccount = new Map<
+      string,
+      { debit: Prisma.Decimal; credit: Prisma.Decimal }
+    >();
     for (const e of entries) {
       const agg = byAccount.get(e.accountCode) ?? { debit: ZERO, credit: ZERO };
       agg.debit = agg.debit.add(e.debitAmount);
@@ -176,9 +185,7 @@ export class FinancialReportService {
   // ── Balance Sheet ─────────────────────────────────────────────
 
   async balanceSheet(tenantId: string, asOfDate?: string) {
-    const end = asOfDate
-      ? new Date(asOfDate + 'T23:59:59.999Z')
-      : new Date();
+    const end = asOfDate ? new Date(asOfDate + 'T23:59:59.999Z') : new Date();
     const start = new Date(Date.UTC(1970, 0, 1));
     const [entries, accounts] = await Promise.all([
       this.postedEntries(tenantId, { start, end }),
@@ -189,7 +196,15 @@ export class FinancialReportService {
     const balanceByType = { asset: ZERO, liability: ZERO, equity: ZERO };
     let revenue = ZERO;
     let expense = ZERO;
-    const lines = { asset: [] as any[], liability: [] as any[], equity: [] as any[] };
+    const lines: {
+      asset: BalanceSheetLine[];
+      liability: BalanceSheetLine[];
+      equity: BalanceSheetLine[];
+    } = {
+      asset: [],
+      liability: [],
+      equity: [],
+    };
     const perAccount = new Map<string, Prisma.Decimal>();
 
     for (const e of entries) {
@@ -210,7 +225,11 @@ export class FinancialReportService {
 
     for (const [code, bal] of perAccount) {
       const acc = accounts.get(code)!;
-      const row = { account: code, name: acc.accountName, balance: bal.toNumber() };
+      const row = {
+        account: code,
+        name: acc.accountName,
+        balance: bal.toNumber(),
+      };
       if (acc.accountType === 'asset') {
         balanceByType.asset = balanceByType.asset.add(bal);
         lines.asset.push(row);
@@ -228,10 +247,14 @@ export class FinancialReportService {
     const totalEquity = balanceByType.equity.add(netIncome);
     const totalLiabEquity = balanceByType.liability.add(totalEquity);
 
-    const sortLines = (a: any, b: any) => a.account.localeCompare(b.account);
+    const sortLines = (a: BalanceSheetLine, b: BalanceSheetLine) =>
+      a.account.localeCompare(b.account);
     return {
       asOfDate: end.toISOString().slice(0, 10),
-      assets: { lines: lines.asset.sort(sortLines), total: balanceByType.asset.toNumber() },
+      assets: {
+        lines: lines.asset.sort(sortLines),
+        total: balanceByType.asset.toNumber(),
+      },
       liabilities: {
         lines: lines.liability.sort(sortLines),
         total: balanceByType.liability.toNumber(),
@@ -324,7 +347,9 @@ export class FinancialReportService {
     const detail = invoices.map((inv) => {
       const balance = dec(inv.balanceDue);
       const due = inv.dueDate ?? inv.invoiceDate;
-      const daysOverdue = Math.floor((asOf.getTime() - new Date(due).getTime()) / dayMs);
+      const daysOverdue = Math.floor(
+        (asOf.getTime() - new Date(due).getTime()) / dayMs,
+      );
       let bucket: keyof typeof buckets;
       if (daysOverdue <= 0) bucket = 'notYetDue';
       else if (daysOverdue <= 30) bucket = 'd1_30';

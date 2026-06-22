@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 
@@ -25,9 +26,9 @@ export class BranchRepository {
   async findMany(
     tenantId: string,
     query: PaginationQueryDto & { isActive?: boolean; search?: string },
-    select?: Record<string, any>,
+    select?: Prisma.BranchSelect,
   ) {
-    const where: any = { tenantId };
+    const where: Prisma.BranchWhereInput = { tenantId };
     if (query.isActive !== undefined) where.isActive = query.isActive;
     if (query.search) {
       where.OR = [
@@ -37,31 +38,26 @@ export class BranchRepository {
       ];
     }
 
-    const findArgs: any = {
-      where,
-      skip: ((query.page || 1) - 1) * (query.limit || 20),
-      take: query.limit || 20,
-      orderBy: { [query.sortBy || 'createdAt']: query.sortOrder || 'desc' },
+    const orderBy: Prisma.BranchOrderByWithRelationInput = {
+      [query.sortBy || 'createdAt']: query.sortOrder || 'desc',
     };
-
-    // Sparse Fieldsets: push select down to DB (no SELECT *)
-    if (select) {
-      findArgs.select = select;
-    }
+    const skip = ((query.page || 1) - 1) * (query.limit || 20);
+    const take = query.limit || 20;
 
     const [data, total] = await Promise.all([
-      this.prisma.branch.findMany(findArgs),
+      // Sparse Fieldsets: push select down to DB (no SELECT *)
+      this.prisma.branch.findMany({ where, skip, take, orderBy, select }),
       this.prisma.branch.count({ where }),
     ]);
 
     return { data, total };
   }
 
-  async create(data: any) {
+  async create(data: Prisma.BranchUncheckedCreateInput) {
     return this.prisma.branch.create({ data });
   }
 
-  async update(id: string, data: any) {
+  async update(id: string, data: Prisma.BranchUpdateInput) {
     return this.prisma.branch.update({ where: { id }, data });
   }
 

@@ -5,5 +5,13 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
-  }
+  },
+  "moduleNameMapper": {
+    "^src/(.*)\\.js$": "<rootDir>/../src/$1",
+    "^src/(.*)$": "<rootDir>/../src/$1",
+    "^(\\.\\.?/.*)\\.js$": "$1"
+  },
+  "transformIgnorePatterns": ["node_modules/(?!(uuid)/)"],
+  "testTimeout": 180000,
+  "maxWorkers": 1
 }

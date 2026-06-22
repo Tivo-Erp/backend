@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { CreateItemDto } from '../dto/create-item.dto.js';
 import { UpdateItemDto } from '../dto/update-item.dto.js';
@@ -16,16 +17,37 @@ export class ItemRepository {
   }
 
   async create(tenantId: string, dto: CreateItemDto) {
-    return this.prisma.item.create({
-      data: { tenantId, ...dto } as any,
-    });
+    const { customAttributes, ...rest } = dto;
+    const data: Prisma.ItemUncheckedCreateInput = {
+      tenantId,
+      ...rest,
+      ...(customAttributes !== undefined && {
+        customAttributes: customAttributes as Prisma.InputJsonValue,
+      }),
+    };
+    return this.prisma.item.create({ data });
   }
 
-  async findAll(tenantId: string, query: ItemQueryDto, select: Record<string, any>) {
-    const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc', status, itemType, categoryId, search, isPurchasable, isSellable } = query;
+  async findAll(
+    tenantId: string,
+    query: ItemQueryDto,
+    select: Prisma.ItemSelect,
+  ) {
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      status,
+      itemType,
+      categoryId,
+      search,
+      isPurchasable,
+      isSellable,
+    } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = {
+    const where: Prisma.ItemWhereInput = {
       tenantId,
       deletedAt: null,
       ...(status && { status }),
@@ -41,13 +63,17 @@ export class ItemRepository {
       }),
     };
 
+    const orderBy: Prisma.ItemOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
+    };
+
     const [data, total] = await Promise.all([
       this.prisma.item.findMany({
         where,
         select,
         skip,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
       }),
       this.prisma.item.count({ where }),
     ]);
@@ -55,7 +81,7 @@ export class ItemRepository {
     return { data, total, page, limit };
   }
 
-  async findById(tenantId: string, id: string, select: Record<string, any>) {
+  async findById(tenantId: string, id: string, select: Prisma.ItemSelect) {
     return this.prisma.item.findFirst({
       where: { id, tenantId, deletedAt: null },
       select,
@@ -63,7 +89,14 @@ export class ItemRepository {
   }
 
   async update(id: string, dto: UpdateItemDto) {
-    return this.prisma.item.update({ where: { id }, data: dto as any });
+    const { customAttributes, ...rest } = dto;
+    const data: Prisma.ItemUncheckedUpdateInput = {
+      ...rest,
+      ...(customAttributes !== undefined && {
+        customAttributes: customAttributes as Prisma.InputJsonValue,
+      }),
+    };
+    return this.prisma.item.update({ where: { id }, data });
   }
 
   async softDelete(id: string) {

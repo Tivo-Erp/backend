@@ -19,26 +19,28 @@ const makePrisma = () => ({
   },
   warehouse: { findFirst: jest.fn() },
   item: { findFirst: jest.fn() },
-  $transaction: jest.fn((fn: any) => fn({
-    warehouse: { findFirst: jest.fn() },
-    item: { findFirst: jest.fn() },
-    inventoryBalance: {
-      findFirst: jest.fn(),
-      update: jest.fn(),
-      create: jest.fn(),
-    },
-    stockMovement: { create: jest.fn(), createMany: jest.fn() },
-  })),
+  $transaction: jest.fn((fn: any) =>
+    fn({
+      warehouse: { findFirst: jest.fn() },
+      item: { findFirst: jest.fn() },
+      inventoryBalance: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+        create: jest.fn(),
+      },
+      stockMovement: { create: jest.fn(), createMany: jest.fn() },
+    }),
+  ),
 });
 
 describe('InventoryService', () => {
   let service: InventoryService;
   let prisma: ReturnType<typeof makePrisma>;
 
-  const tenantId    = 'tenant-uuid';
-  const userId      = 'user-uuid';
+  const tenantId = 'tenant-uuid';
+  const userId = 'user-uuid';
   const warehouseId = 'wh-uuid';
-  const itemId      = 'item-uuid';
+  const itemId = 'item-uuid';
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -49,7 +51,7 @@ describe('InventoryService', () => {
     }).compile();
 
     service = module.get(InventoryService);
-    prisma  = module.get(PrismaService);
+    prisma = module.get(PrismaService);
   });
 
   // ── findBalances ──────────────────────────────────────────────
@@ -71,7 +73,11 @@ describe('InventoryService', () => {
       prisma.inventoryBalance.findMany.mockResolvedValue([balance]);
       prisma.inventoryBalance.count.mockResolvedValue(1);
 
-      const result = await service.findBalances(tenantId, { page: 1, limit: 20 } as any, ['admin']);
+      const result = await service.findBalances(
+        tenantId,
+        { page: 1, limit: 20 },
+        ['admin'],
+      );
 
       expect(result.data[0].quantityAvailable).toBe(80);
       expect(result.data[0].isBelowRop).toBe(false);
@@ -82,19 +88,23 @@ describe('InventoryService', () => {
       prisma.inventoryBalance.findMany.mockResolvedValue([balance]);
       prisma.inventoryBalance.count.mockResolvedValue(1);
 
-      const result = await service.findBalances(tenantId, { page: 1, limit: 20 } as any, ['admin']);
+      const result = await service.findBalances(
+        tenantId,
+        { page: 1, limit: 20 },
+        ['admin'],
+      );
       expect(result.data[0].isBelowRop).toBe(true);
     });
 
     it('when belowRop=true, total reflects only below-ROP items', async () => {
       const aboveRop = makeBalance(100, 0, 20); // available=100, above
-      const belowRop = makeBalance(5, 0, 20);   // available=5, below
+      const belowRop = makeBalance(5, 0, 20); // available=5, below
 
       prisma.inventoryBalance.findMany.mockResolvedValue([aboveRop, belowRop]);
 
       const result = await service.findBalances(
         tenantId,
-        { page: 1, limit: 20, belowRop: true } as any,
+        { page: 1, limit: 20, belowRop: true },
         ['admin'],
       );
 
@@ -124,7 +134,11 @@ describe('InventoryService', () => {
       prisma.stockMovement.findMany.mockResolvedValue([{ id: 'mv-1' }]);
       prisma.stockMovement.count.mockResolvedValue(1);
 
-      const result = await service.findMovements(tenantId, { page: 1, limit: 20 } as any, ['admin']);
+      const result = await service.findMovements(
+        tenantId,
+        { page: 1, limit: 20 },
+        ['admin'],
+      );
       expect(result.data).toHaveLength(1);
     });
   });
@@ -133,8 +147,14 @@ describe('InventoryService', () => {
 
   describe('createAdjustment', () => {
     const makeTx = (overrides?: any) => ({
-      warehouse: { findFirst: jest.fn().mockResolvedValue({ id: warehouseId }) },
-      item: { findFirst: jest.fn().mockResolvedValue({ id: itemId, isBatchTracked: false }) },
+      warehouse: {
+        findFirst: jest.fn().mockResolvedValue({ id: warehouseId }),
+      },
+      item: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: itemId, isBatchTracked: false }),
+      },
       inventoryBalance: {
         findFirst: jest.fn().mockResolvedValue(null),
         update: jest.fn(),
@@ -157,17 +177,24 @@ describe('InventoryService', () => {
       const result = await service.createAdjustment(tenantId, userId, dto);
 
       expect(tx.inventoryBalance.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ quantityOnHand: 50 }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ quantityOnHand: 50 }),
+        }),
       );
       expect(tx.stockMovement.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ direction: 'IN', quantity: 50 }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ direction: 'IN', quantity: 50 }),
+        }),
       );
       expect(result.linesProcessed).toBe(1);
     });
 
     it('throws 400 INV_STOCK_NEGATIVE when adjustment would go below zero', async () => {
       const tx = makeTx();
-      tx.inventoryBalance.findFirst.mockResolvedValue({ id: 'bal-1', quantityOnHand: 10 });
+      tx.inventoryBalance.findFirst.mockResolvedValue({
+        id: 'bal-1',
+        quantityOnHand: 10,
+      });
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
 
       const dto: any = {
@@ -176,7 +203,9 @@ describe('InventoryService', () => {
         lines: [{ itemId, adjustmentQty: -20, uom: 'PCS' }],
       };
 
-      await expect(service.createAdjustment(tenantId, userId, dto)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createAdjustment(tenantId, userId, dto),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws 400 INV_LOT_REQUIRED for batch-tracked item without lotId', async () => {
@@ -190,7 +219,9 @@ describe('InventoryService', () => {
         lines: [{ itemId, adjustmentQty: 10, uom: 'PCS' }], // no lotId
       };
 
-      await expect(service.createAdjustment(tenantId, userId, dto)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createAdjustment(tenantId, userId, dto),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws 404 when warehouse not in tenant', async () => {
@@ -199,7 +230,11 @@ describe('InventoryService', () => {
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
 
       await expect(
-        service.createAdjustment(tenantId, userId, { warehouseId, reasonCode: 'other', lines: [] } as any),
+        service.createAdjustment(tenantId, userId, {
+          warehouseId,
+          reasonCode: 'other',
+          lines: [],
+        } as any),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -208,16 +243,18 @@ describe('InventoryService', () => {
 
   describe('createTransfer', () => {
     const fromWh = 'from-wh-uuid';
-    const toWh   = 'to-wh-uuid';
+    const toWh = 'to-wh-uuid';
 
     const makeTx = (srcQoh = 100, srcRes = 0) => ({
       warehouse: {
-        findFirst: jest.fn()
+        findFirst: jest
+          .fn()
           .mockResolvedValueOnce({ id: fromWh })
           .mockResolvedValueOnce({ id: toWh }),
       },
       inventoryBalance: {
-        findFirst: jest.fn()
+        findFirst: jest
+          .fn()
           .mockResolvedValueOnce({
             id: 'src-bal',
             quantityOnHand: srcQoh,
@@ -245,16 +282,31 @@ describe('InventoryService', () => {
       const result = await service.createTransfer(tenantId, userId, dto);
 
       expect(tx.inventoryBalance.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ quantityOnHand: { decrement: 30 } }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ quantityOnHand: { decrement: 30 } }),
+        }),
       );
       expect(tx.inventoryBalance.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ quantityOnHand: 30, variantId: null }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            quantityOnHand: 30,
+            variantId: null,
+          }),
+        }),
       );
       expect(tx.stockMovement.createMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.arrayContaining([
-          expect.objectContaining({ movementType: 'transfer_out', direction: 'OUT' }),
-          expect.objectContaining({ movementType: 'transfer_in', direction: 'IN' }),
-        ]) }),
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              movementType: 'transfer_out',
+              direction: 'OUT',
+            }),
+            expect.objectContaining({
+              movementType: 'transfer_in',
+              direction: 'IN',
+            }),
+          ]),
+        }),
       );
       expect(result.linesTransferred).toBe(1);
     });
@@ -262,7 +314,9 @@ describe('InventoryService', () => {
     it('throws 400 WMS_TRANSFER_SAME_WAREHOUSE', async () => {
       await expect(
         service.createTransfer(tenantId, userId, {
-          fromWarehouseId: fromWh, toWarehouseId: fromWh, lines: [],
+          fromWarehouseId: fromWh,
+          toWarehouseId: fromWh,
+          lines: [],
         } as any),
       ).rejects.toThrow(BadRequestException);
     });
@@ -277,7 +331,9 @@ describe('InventoryService', () => {
         lines: [{ itemId, quantity: 50, uom: 'PCS' }], // requesting 50 > 10
       };
 
-      await expect(service.createTransfer(tenantId, userId, dto)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.createTransfer(tenantId, userId, dto),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('decrements quantityReserved on source proportionally', async () => {
@@ -325,7 +381,9 @@ describe('InventoryService', () => {
       await service.createTransfer(tenantId, userId, dto);
 
       expect(tx.inventoryBalance.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ variantId }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ variantId }),
+        }),
       );
     });
   });

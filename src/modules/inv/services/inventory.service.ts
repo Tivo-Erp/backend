@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
@@ -15,48 +16,80 @@ import {
   CreateStockTransferDto,
 } from '../dto/inv.dto.js';
 
+/**
+ * Shape of an InventoryBalance row as fetched by `findBalances` — matches the
+ * `include` used at the call sites. `bin`/`lot` are not part of that include
+ * (so they are always absent at runtime); they are declared optional here so
+ * the mapper can reference them safely without widening to `any`.
+ */
+type BalanceRow = Prisma.InventoryBalanceGetPayload<{
+  include: {
+    item: { select: { sku: true; name: true; minStockLevel: true } };
+    warehouse: { select: { code: true } };
+  };
+}> & {
+  bin?: { label: string | null } | null;
+  lot?: { lotNumber: string | null } | null;
+};
+
 @Injectable()
 export class InventoryService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ── INV-001: Stock Balance Query ──────────────────────────────
 
-  async findBalances(tenantId: string, query: InventoryQueryDto, userRoles: string[]) {
+  async findBalances(
+    tenantId: string,
+    query: InventoryQueryDto,
+    userRoles: string[],
+  ) {
     const {
-      page = 1, limit = 20, sortBy = 'updatedAt', sortOrder = 'desc',
-      warehouseId, itemId, search, belowRop, includeZero,
+      page = 1,
+      limit = 20,
+      sortBy = 'updatedAt',
+      sortOrder = 'desc',
+      warehouseId,
+      itemId,
+      search,
+      belowRop,
+      includeZero,
     } = query;
 
     // Build allowed response fields from role config
-    const allowedFields = FieldSelector.resolveAllowedFields(userRoles, BALANCE_FIELD_CONFIG);
+    const allowedFields = FieldSelector.resolveAllowedFields(
+      userRoles,
+      BALANCE_FIELD_CONFIG,
+    );
 
-    const where: any = {
+    const where: Prisma.InventoryBalanceWhereInput = {
       tenantId,
       ...(warehouseId && { warehouseId }),
       ...(itemId && { itemId }),
       ...(!includeZero && { quantityOnHand: { gt: 0 } }),
     };
 
+    const itemWhere: Prisma.ItemWhereInput = {};
     if (search) {
-      where.item = {
-        OR: [
-          { sku: { contains: search, mode: 'insensitive' } },
-          { name: { contains: search, mode: 'insensitive' } },
-        ],
-      };
+      itemWhere.OR = [
+        { sku: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
     // belowRop requires computing available vs minStockLevel — must include items with minStockLevel set
     if (belowRop) {
-      where.item = {
-        ...(where.item ?? {}),
-        minStockLevel: { not: null },
-      };
+      itemWhere.minStockLevel = { not: null };
     }
 
-    const orderBy = { [sortBy]: sortOrder };
+    if (search || belowRop) {
+      where.item = itemWhere;
+    }
 
-    let data: any[];
+    const orderBy: Prisma.InventoryBalanceOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
+    };
+
+    let data: ReturnType<InventoryService['mapBalance']>[];
     let total: number;
 
     if (belowRop) {
@@ -98,7 +131,7 @@ export class InventoryService {
     return PaginatedResponseDto.create(data, total, page, limit);
   }
 
-  private mapBalance(b: any, allowedFields: Set<string>) {
+  private mapBalance(b: BalanceRow, allowedFields: Set<string>) {
     const available = Number(b.quantityOnHand) - Number(b.quantityReserved);
     const isBelowRop = b.item.minStockLevel
       ? available < Number(b.item.minStockLevel)
@@ -116,7 +149,9 @@ export class InventoryService {
       uom: b.uom,
       costPerUnit: Number(b.costPerUnit),
       totalValue: available * Number(b.costPerUnit),
-      minStockLevel: b.item.minStockLevel ? Number(b.item.minStockLevel) : undefined,
+      minStockLevel: b.item.minStockLevel
+        ? Number(b.item.minStockLevel)
+        : undefined,
       isBelowRop,
       binLabel: b.bin?.label ?? undefined,
       lotNumber: b.lot?.lotNumber ?? undefined,
@@ -137,13 +172,22 @@ export class InventoryService {
     fields?: string,
   ) {
     const {
-      page = 1, limit = 20,
-      itemId, warehouseId, movementType, dateFrom, dateTo,
+      page = 1,
+      limit = 20,
+      itemId,
+      warehouseId,
+      movementType,
+      dateFrom,
+      dateTo,
     } = query;
 
-    const select = FieldSelector.buildPrismaSelect(fields, userRoles, MOVEMENT_FIELD_CONFIG);
+    const select = FieldSelector.buildPrismaSelect(
+      fields,
+      userRoles,
+      MOVEMENT_FIELD_CONFIG,
+    );
 
-    const where: any = {
+    const where: Prisma.StockMovementWhereInput = {
       tenantId,
       ...(itemId && { itemId }),
       ...(warehouseId && { warehouseId }),
@@ -172,9 +216,15 @@ export class InventoryService {
 
   // ── INV-002: Stock Adjustment ─────────────────────────────────
 
-  async createAdjustment(tenantId: string, userId: string, dto: CreateStockAdjustmentDto) {
+  async createAdjustment(
+    tenantId: string,
+    userId: string,
+    dto: CreateStockAdjustmentDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      const wh = await tx.warehouse.findFirst({ where: { id: dto.warehouseId, tenantId } });
+      const wh = await tx.warehouse.findFirst({
+        where: { id: dto.warehouseId, tenantId },
+      });
       if (!wh) throw new NotFoundException('WMS_WAREHOUSE_NOT_FOUND');
 
       for (const line of dto.lines) {
@@ -182,10 +232,13 @@ export class InventoryService {
           where: { id: line.itemId, tenantId, deletedAt: null },
           select: { id: true, isBatchTracked: true },
         });
-        if (!item) throw new NotFoundException(`MAT_ITEM_NOT_FOUND: ${line.itemId}`);
+        if (!item)
+          throw new NotFoundException(`MAT_ITEM_NOT_FOUND: ${line.itemId}`);
 
         if (item.isBatchTracked && !line.lotId) {
-          throw new BadRequestException(`INV_LOT_REQUIRED: item ${line.itemId} is batch-tracked`);
+          throw new BadRequestException(
+            `INV_LOT_REQUIRED: item ${line.itemId} is batch-tracked`,
+          );
         }
 
         const current = await tx.inventoryBalance.findFirst({
@@ -213,7 +266,9 @@ export class InventoryService {
             where: { id: current.id },
             data: {
               quantityOnHand: newQty,
-              ...(line.costPerUnit !== undefined && { costPerUnit: line.costPerUnit }),
+              ...(line.costPerUnit !== undefined && {
+                costPerUnit: line.costPerUnit,
+              }),
             },
           });
         } else {
@@ -256,18 +311,26 @@ export class InventoryService {
 
   // ── INV-003: Stock Transfer ───────────────────────────────────
 
-  async createTransfer(tenantId: string, userId: string, dto: CreateStockTransferDto) {
+  async createTransfer(
+    tenantId: string,
+    userId: string,
+    dto: CreateStockTransferDto,
+  ) {
     if (dto.fromWarehouseId === dto.toWarehouseId) {
       throw new BadRequestException('WMS_TRANSFER_SAME_WAREHOUSE');
     }
 
     return this.prisma.$transaction(async (tx) => {
       const [fromWh, toWh] = await Promise.all([
-        tx.warehouse.findFirst({ where: { id: dto.fromWarehouseId, tenantId } }),
+        tx.warehouse.findFirst({
+          where: { id: dto.fromWarehouseId, tenantId },
+        }),
         tx.warehouse.findFirst({ where: { id: dto.toWarehouseId, tenantId } }),
       ]);
-      if (!fromWh) throw new NotFoundException('WMS_WAREHOUSE_NOT_FOUND: fromWarehouseId');
-      if (!toWh) throw new NotFoundException('WMS_WAREHOUSE_NOT_FOUND: toWarehouseId');
+      if (!fromWh)
+        throw new NotFoundException('WMS_WAREHOUSE_NOT_FOUND: fromWarehouseId');
+      if (!toWh)
+        throw new NotFoundException('WMS_WAREHOUSE_NOT_FOUND: toWarehouseId');
 
       for (const line of dto.lines) {
         const srcBalance = await tx.inventoryBalance.findFirst({
@@ -281,7 +344,8 @@ export class InventoryService {
         });
 
         const available = srcBalance
-          ? Number(srcBalance.quantityOnHand) - Number(srcBalance.quantityReserved)
+          ? Number(srcBalance.quantityOnHand) -
+            Number(srcBalance.quantityReserved)
           : 0;
 
         if (available < line.quantity) {

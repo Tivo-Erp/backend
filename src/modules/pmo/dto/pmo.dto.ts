@@ -22,9 +22,20 @@ export const PROJECT_STATUSES = [
   'completed',
   'cancelled',
 ] as const;
-export const TASK_STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'done'] as const;
+export const TASK_STATUSES = [
+  'backlog',
+  'todo',
+  'in_progress',
+  'review',
+  'done',
+] as const;
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
-export const TIMESHEET_STATUSES = ['draft', 'submitted', 'approved', 'rejected'] as const;
+export const TIMESHEET_STATUSES = [
+  'draft',
+  'submitted',
+  'approved',
+  'rejected',
+] as const;
 
 // ── Projects ───────────────────────────────────────────────────
 
@@ -89,7 +100,7 @@ export class UpdateProjectDto {
 
   @ApiPropertyOptional({ enum: PROJECT_STATUSES })
   @IsOptional()
-  @IsIn(PROJECT_STATUSES as unknown as string[])
+  @IsIn(PROJECT_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ example: 500000000 })
@@ -113,7 +124,7 @@ export class UpdateProjectDto {
 export class ProjectQueryDto extends PaginatedFieldsQueryDto {
   @ApiPropertyOptional({ enum: PROJECT_STATUSES })
   @IsOptional()
-  @IsIn(PROJECT_STATUSES as unknown as string[])
+  @IsIn(PROJECT_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -154,12 +165,12 @@ export class CreateTaskDto {
 
   @ApiPropertyOptional({ enum: TASK_STATUSES, default: 'backlog' })
   @IsOptional()
-  @IsIn(TASK_STATUSES as unknown as string[])
+  @IsIn(TASK_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ enum: TASK_PRIORITIES })
   @IsOptional()
-  @IsIn(TASK_PRIORITIES as unknown as string[])
+  @IsIn(TASK_PRIORITIES)
   priority?: string;
 
   @ApiPropertyOptional({ example: '2026-08-01' })
@@ -183,12 +194,12 @@ export class UpdateTaskDto {
 
   @ApiPropertyOptional({ enum: TASK_STATUSES })
   @IsOptional()
-  @IsIn(TASK_STATUSES as unknown as string[])
+  @IsIn(TASK_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ enum: TASK_PRIORITIES })
   @IsOptional()
-  @IsIn(TASK_PRIORITIES as unknown as string[])
+  @IsIn(TASK_PRIORITIES)
   priority?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -217,7 +228,7 @@ export class UpdateTaskDto {
 export class TaskQueryDto extends PaginatedFieldsQueryDto {
   @ApiPropertyOptional({ enum: TASK_STATUSES })
   @IsOptional()
-  @IsIn(TASK_STATUSES as unknown as string[])
+  @IsIn(TASK_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -297,6 +308,6 @@ export class TimesheetQueryDto extends PaginatedFieldsQueryDto {
 
   @ApiPropertyOptional({ enum: TIMESHEET_STATUSES })
   @IsOptional()
-  @IsIn(TIMESHEET_STATUSES as unknown as string[])
+  @IsIn(TIMESHEET_STATUSES)
   status?: string;
 }

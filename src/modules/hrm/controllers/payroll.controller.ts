@@ -37,9 +37,14 @@ export class PayrollController {
 
   @Post('calculate')
   @RequirePermissions('hrm:payroll:calculate')
-  @ApiOperation({ summary: 'Calculate a monthly payroll run (VN statutory formula)' })
+  @ApiOperation({
+    summary: 'Calculate a monthly payroll run (VN statutory formula)',
+  })
   @ApiResponse({ status: 201, description: 'Payroll run created (draft)' })
-  @ApiResponse({ status: 409, description: 'Payroll run already exists for period' })
+  @ApiResponse({
+    status: 409,
+    description: 'Payroll run already exists for period',
+  })
   calculate(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,
@@ -51,10 +56,7 @@ export class PayrollController {
   @Get()
   @RequirePermissions('hrm:payroll:read')
   @ApiOperation({ summary: 'List payroll runs' })
-  findAll(
-    @CurrentTenant() tenantId: string,
-    @Query() query: PayrollQueryDto,
-  ) {
+  findAll(@CurrentTenant() tenantId: string, @Query() query: PayrollQueryDto) {
     return this.service.findAll(tenantId, query);
   }
 
@@ -72,7 +74,9 @@ export class PayrollController {
   @Post(':id/approve')
   @RequirePermissions('hrm:payroll:approve')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Approve payroll run → auto-create posted journal batch' })
+  @ApiOperation({
+    summary: 'Approve payroll run → auto-create posted journal batch',
+  })
   @ApiResponse({ status: 409, description: 'Not draft / fiscal period closed' })
   approve(
     @CurrentTenant() tenantId: string,

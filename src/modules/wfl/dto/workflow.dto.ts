@@ -39,12 +39,12 @@ export class CreateWorkflowStepDto {
   name: string;
 
   @ApiProperty({ enum: STEP_TYPES })
-  @IsIn(STEP_TYPES as unknown as string[])
+  @IsIn(STEP_TYPES)
   stepType: string;
 
   @ApiPropertyOptional({ enum: APPROVER_TYPES })
   @IsOptional()
-  @IsIn(APPROVER_TYPES as unknown as string[])
+  @IsIn(APPROVER_TYPES)
   approverType?: string;
 
   @ApiPropertyOptional({
@@ -88,7 +88,9 @@ export class CreateWorkflowDefinitionDto {
   @MaxLength(50)
   triggerEvent: string;
 
-  @ApiPropertyOptional({ description: 'JSON condition, e.g. { grandTotal: { gte: 10000000 } }' })
+  @ApiPropertyOptional({
+    description: 'JSON condition, e.g. { grandTotal: { gte: 10000000 } }',
+  })
   @IsOptional()
   @IsObject()
   triggerCondition?: Record<string, unknown>;
@@ -118,7 +120,10 @@ export class UpdateWorkflowDefinitionDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({ type: [CreateWorkflowStepDto], description: 'If provided, replaces ALL steps' })
+  @ApiPropertyOptional({
+    type: [CreateWorkflowStepDto],
+    description: 'If provided, replaces ALL steps',
+  })
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
@@ -159,7 +164,9 @@ export class WorkflowDefinitionQueryDto extends PaginatedFieldsQueryDto {
 }
 
 export class WorkflowTaskQueryDto extends PaginatedFieldsQueryDto {
-  @ApiPropertyOptional({ description: 'running, completed, rejected, cancelled' })
+  @ApiPropertyOptional({
+    description: 'running, completed, rejected, cancelled',
+  })
   @IsOptional()
   @IsIn(['running', 'completed', 'rejected', 'cancelled', 'timed_out'])
   status?: string;

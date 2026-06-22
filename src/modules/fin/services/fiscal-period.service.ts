@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import {
@@ -30,7 +31,10 @@ export class FiscalPeriodService {
 
   async findAll(tenantId: string, query: FiscalPeriodQueryDto) {
     const { page = 1, limit = 20, year } = query;
-    const where: any = { tenantId, ...(year && { year }) };
+    const where: Prisma.FiscalPeriodWhereInput = {
+      tenantId,
+      ...(year && { year }),
+    };
 
     const [data, total] = await Promise.all([
       this.prisma.fiscalPeriod.findMany({

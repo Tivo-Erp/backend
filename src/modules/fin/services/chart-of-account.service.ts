@@ -3,7 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
+import { CacheService } from '../../../infra/cache/cache.service.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { safeSortBy } from '../../../common/utils/sort.util.js';
@@ -15,9 +17,16 @@ import {
   UpdateChartOfAccountDto,
 } from '../dto/chart-of-account.dto.js';
 
+/** Cache namespace for the chart-of-accounts list (INF-007). */
+const CACHE_NS = 'fin:coa:list';
+const CACHE_TTL_SEC = 120;
+
 @Injectable()
 export class ChartOfAccountService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   /** Idempotently seed the default VN chart of accounts (skips existing codes). */
   async seedDefaults(tenantId: string) {
@@ -33,6 +42,9 @@ export class ChartOfAccountService {
       })),
       skipDuplicates: true,
     });
+    if (result.count > 0) {
+      await this.cache.invalidateNamespace(tenantId, CACHE_NS);
+    }
     return { seeded: result.count };
   }
 
@@ -41,7 +53,7 @@ export class ChartOfAccountService {
       where: { tenantId, accountCode: dto.accountCode },
     });
     if (exists) throw new ConflictException('FIN_ACCOUNT_CODE_DUPLICATE');
-    return this.prisma.chartOfAccount.create({
+    const created = await this.prisma.chartOfAccount.create({
       data: {
         tenantId,
         accountCode: dto.accountCode,
@@ -52,6 +64,8 @@ export class ChartOfAccountService {
         isGroup: dto.isGroup ?? false,
       },
     });
+    await this.cache.invalidateNamespace(tenantId, CACHE_NS);
+    return created;
   }
 
   async findAll(
@@ -84,7 +98,7 @@ export class ChartOfAccountService {
       'accountCode',
     );
 
-    const where: any = {
+    const where: Prisma.ChartOfAccountWhereInput = {
       tenantId,
       ...(accountType && { accountType }),
       ...(isActive !== undefined && { isActive }),
@@ -95,19 +109,39 @@ export class ChartOfAccountService {
         ],
       }),
     };
+    const orderBy: Prisma.ChartOfAccountOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
+    };
 
-    const [data, total] = await Promise.all([
-      this.prisma.chartOfAccount.findMany({
-        where,
-        select,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-      }),
-      this.prisma.chartOfAccount.count({ where }),
-    ]);
+    // INF-007 cache-aside. Field validation (role whitelist) runs above,
+    // before any cache read. The chart of accounts is tenant-wide (no
+    // user/branch scoping), so tenantId + filters + fields fully key it.
+    const suffix = [
+      `p${page}`,
+      `l${limit}`,
+      `sb${sortBy}`,
+      `so${sortOrder}`,
+      `at${accountType ?? ''}`,
+      `ia${isActive ?? ''}`,
+      `q${search ?? ''}`,
+      `f${FieldSelector.toCacheKey(query.fields)}`,
+    ].join(':');
+    const key = this.cache.key(tenantId, CACHE_NS, suffix);
 
-    return PaginatedResponseDto.create(data, total, page, limit);
+    return this.cache.wrap(key, CACHE_TTL_SEC, async () => {
+      const [data, total] = await Promise.all([
+        this.prisma.chartOfAccount.findMany({
+          where,
+          select,
+          skip: (page - 1) * limit,
+          take: limit,
+          orderBy,
+        }),
+        this.prisma.chartOfAccount.count({ where }),
+      ]);
+
+      return PaginatedResponseDto.create(data, total, page, limit);
+    });
   }
 
   async update(tenantId: string, id: string, dto: UpdateChartOfAccountDto) {
@@ -116,7 +150,12 @@ export class ChartOfAccountService {
       select: { id: true },
     });
     if (!acc) throw new NotFoundException('FIN_ACCOUNT_NOT_FOUND');
-    return this.prisma.chartOfAccount.update({ where: { id }, data: dto });
+    const updated = await this.prisma.chartOfAccount.update({
+      where: { id },
+      data: dto,
+    });
+    await this.cache.invalidateNamespace(tenantId, CACHE_NS);
+    return updated;
   }
 
   async remove(tenantId: string, id: string) {
@@ -132,5 +171,6 @@ export class ChartOfAccountService {
     if (used > 0) throw new ConflictException('FIN_ACCOUNT_HAS_JOURNALS');
 
     await this.prisma.chartOfAccount.delete({ where: { id } });
+    await this.cache.invalidateNamespace(tenantId, CACHE_NS);
   }
 }

@@ -33,16 +33,33 @@ describe('WorkflowEngineService', () => {
   });
 
   const twoStepUserDef = def([
-    { stepNumber: 1, name: 'Step1', stepType: 'approval', approverType: 'user', approverId: 'u1' },
-    { stepNumber: 2, name: 'Step2', stepType: 'approval', approverType: 'user', approverId: 'u2' },
+    {
+      stepNumber: 1,
+      name: 'Step1',
+      stepType: 'approval',
+      approverType: 'user',
+      approverId: 'u1',
+    },
+    {
+      stepNumber: 2,
+      name: 'Step2',
+      stepType: 'approval',
+      approverType: 'user',
+      approverId: 'u2',
+    },
   ]);
 
   it('rejects approval from a user who is not the current-step approver', async () => {
     const tx = {
       workflowInstance: {
         findFirst: jest.fn().mockResolvedValue({
-          id: 'wi1', status: 'running', currentStep: 1, requestedBy: 'r1',
-          entityType: 'po', entityId: 'po1', definition: twoStepUserDef,
+          id: 'wi1',
+          status: 'running',
+          currentStep: 1,
+          requestedBy: 'r1',
+          entityType: 'po',
+          entityId: 'po1',
+          definition: twoStepUserDef,
         }),
         updateMany: jest.fn(),
       },
@@ -60,10 +77,19 @@ describe('WorkflowEngineService', () => {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce({
-            id: 'wi1', status: 'running', currentStep: 1, requestedBy: 'r1',
-            entityType: 'po', entityId: 'po1', definition: twoStepUserDef,
+            id: 'wi1',
+            status: 'running',
+            currentStep: 1,
+            requestedBy: 'r1',
+            entityType: 'po',
+            entityId: 'po1',
+            definition: twoStepUserDef,
           })
-          .mockResolvedValueOnce({ id: 'wi1', currentStep: 2, status: 'running' }),
+          .mockResolvedValueOnce({
+            id: 'wi1',
+            currentStep: 2,
+            status: 'running',
+          }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       workflowAction: { create: jest.fn() },
@@ -72,7 +98,9 @@ describe('WorkflowEngineService', () => {
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
     await service.approve(tenantId, 'wi1', 'u1', [], { comment: 'ok' });
     expect(tx.workflowAction.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: 'approved', stepNumber: 1 }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'approved', stepNumber: 1 }),
+      }),
     );
     expect(tx.workflowInstance.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { currentStep: 2 } }),
@@ -85,8 +113,13 @@ describe('WorkflowEngineService', () => {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce({
-            id: 'wi1', status: 'running', currentStep: 2, requestedBy: 'r1',
-            entityType: 'po', entityId: 'po1', definition: twoStepUserDef,
+            id: 'wi1',
+            status: 'running',
+            currentStep: 2,
+            requestedBy: 'r1',
+            entityType: 'po',
+            entityId: 'po1',
+            definition: twoStepUserDef,
           })
           .mockResolvedValueOnce({ id: 'wi1', status: 'completed' }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -107,8 +140,13 @@ describe('WorkflowEngineService', () => {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce({
-            id: 'wi1', status: 'running', currentStep: 1, requestedBy: 'r1',
-            entityType: 'po', entityId: 'po1', definition: twoStepUserDef,
+            id: 'wi1',
+            status: 'running',
+            currentStep: 1,
+            requestedBy: 'r1',
+            entityType: 'po',
+            entityId: 'po1',
+            definition: twoStepUserDef,
           })
           .mockResolvedValueOnce({ id: 'wi1', status: 'rejected' }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -126,23 +164,31 @@ describe('WorkflowEngineService', () => {
     const tx = {
       workflowInstance: {
         findFirst: jest.fn().mockResolvedValue({
-          id: 'wi1', status: 'completed', currentStep: 2, definition: twoStepUserDef,
+          id: 'wi1',
+          status: 'completed',
+          currentStep: 2,
+          definition: twoStepUserDef,
         }),
       },
       workflowAction: { create: jest.fn() },
     };
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
-    await expect(service.approve(tenantId, 'wi1', 'u2', [], {})).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.approve(tenantId, 'wi1', 'u2', [], {}),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('refuses a stale-step reject when the instance advanced concurrently', async () => {
     const tx = {
       workflowInstance: {
         findFirst: jest.fn().mockResolvedValue({
-          id: 'wi1', status: 'running', currentStep: 1, requestedBy: 'r1',
-          entityType: 'po', entityId: 'po1', definition: twoStepUserDef,
+          id: 'wi1',
+          status: 'running',
+          currentStep: 1,
+          requestedBy: 'r1',
+          entityType: 'po',
+          entityId: 'po1',
+          definition: twoStepUserDef,
         }),
         // claim loses: another approver moved currentStep past 1
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -150,9 +196,9 @@ describe('WorkflowEngineService', () => {
       workflowAction: { create: jest.fn() },
     };
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
-    await expect(service.reject(tenantId, 'wi1', 'u1', [], {})).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.reject(tenantId, 'wi1', 'u1', [], {}),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.workflowInstance.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ currentStep: 1, status: 'running' }),
@@ -165,35 +211,67 @@ describe('WorkflowEngineService', () => {
     const tx = {
       workflowInstance: {
         findFirst: jest.fn().mockResolvedValue({
-          id: 'wi1', status: 'running', currentStep: 1, requestedBy: 'r1',
-          entityType: 'po', entityId: 'po1', definition: twoStepUserDef,
+          id: 'wi1',
+          status: 'running',
+          currentStep: 1,
+          requestedBy: 'r1',
+          entityType: 'po',
+          entityId: 'po1',
+          definition: twoStepUserDef,
         }),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       workflowAction: { create: jest.fn() },
     };
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
-    await expect(service.approve(tenantId, 'wi1', 'u1', [], {})).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.approve(tenantId, 'wi1', 'u1', [], {}),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(notifications.create).not.toHaveBeenCalled();
   });
 
   it('auto-executes a notification step and advances past it', async () => {
     const mixedDef = def([
-      { stepNumber: 1, name: 'Mgr', stepType: 'approval', approverType: 'user', approverId: 'u1' },
-      { stepNumber: 2, name: 'FYI finance', stepType: 'notification', approverType: null, approverId: null },
-      { stepNumber: 3, name: 'Director', stepType: 'approval', approverType: 'user', approverId: 'u3' },
+      {
+        stepNumber: 1,
+        name: 'Mgr',
+        stepType: 'approval',
+        approverType: 'user',
+        approverId: 'u1',
+      },
+      {
+        stepNumber: 2,
+        name: 'FYI finance',
+        stepType: 'notification',
+        approverType: null,
+        approverId: null,
+      },
+      {
+        stepNumber: 3,
+        name: 'Director',
+        stepType: 'approval',
+        approverType: 'user',
+        approverId: 'u3',
+      },
     ]);
     const tx = {
       workflowInstance: {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce({
-            id: 'wi1', status: 'running', currentStep: 1, requestedBy: 'r1',
-            entityType: 'po', entityId: 'po1', definition: mixedDef,
+            id: 'wi1',
+            status: 'running',
+            currentStep: 1,
+            requestedBy: 'r1',
+            entityType: 'po',
+            entityId: 'po1',
+            definition: mixedDef,
           })
-          .mockResolvedValueOnce({ id: 'wi1', currentStep: 3, status: 'running' }),
+          .mockResolvedValueOnce({
+            id: 'wi1',
+            currentStep: 3,
+            status: 'running',
+          }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       workflowAction: { create: jest.fn() },
@@ -221,16 +299,33 @@ describe('WorkflowEngineService', () => {
 
   it('completes when the trailing step after an approval is a notification', async () => {
     const trailingDef = def([
-      { stepNumber: 1, name: 'Mgr', stepType: 'approval', approverType: 'user', approverId: 'u1' },
-      { stepNumber: 2, name: 'FYI', stepType: 'notification', approverType: null, approverId: null },
+      {
+        stepNumber: 1,
+        name: 'Mgr',
+        stepType: 'approval',
+        approverType: 'user',
+        approverId: 'u1',
+      },
+      {
+        stepNumber: 2,
+        name: 'FYI',
+        stepType: 'notification',
+        approverType: null,
+        approverId: null,
+      },
     ]);
     const tx = {
       workflowInstance: {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce({
-            id: 'wi1', status: 'running', currentStep: 1, requestedBy: 'r1',
-            entityType: 'po', entityId: 'po1', definition: trailingDef,
+            id: 'wi1',
+            status: 'running',
+            currentStep: 1,
+            requestedBy: 'r1',
+            entityType: 'po',
+            entityId: 'po1',
+            definition: trailingDef,
           })
           .mockResolvedValueOnce({ id: 'wi1', status: 'completed' }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -247,8 +342,18 @@ describe('WorkflowEngineService', () => {
 
   describe('start', () => {
     const baseDef = {
-      id: 'd1', isActive: true, triggerEntity: 'purchase_order',
-      steps: [{ stepNumber: 1, name: 'Mgr', stepType: 'approval', approverType: 'user', approverId: 'u1' }],
+      id: 'd1',
+      isActive: true,
+      triggerEntity: 'purchase_order',
+      steps: [
+        {
+          stepNumber: 1,
+          name: 'Mgr',
+          stepType: 'approval',
+          approverType: 'user',
+          approverId: 'u1',
+        },
+      ],
     };
 
     it('rejects an entityType that does not match the definition trigger', async () => {
@@ -259,7 +364,9 @@ describe('WorkflowEngineService', () => {
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       await expect(
         service.start(tenantId, 'r1', {
-          definitionId: 'd1', entityType: 'sales_order', entityId: 'e1',
+          definitionId: 'd1',
+          entityType: 'sales_order',
+          entityId: 'e1',
         } as any),
       ).rejects.toMatchObject({ message: 'WFL_ENTITY_TYPE_MISMATCH' });
     });
@@ -275,7 +382,9 @@ describe('WorkflowEngineService', () => {
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       await expect(
         service.start(tenantId, 'r1', {
-          definitionId: 'd1', entityType: 'purchase_order', entityId: 'e1',
+          definitionId: 'd1',
+          entityType: 'purchase_order',
+          entityId: 'e1',
         } as any),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(tx.workflowInstance.create).not.toHaveBeenCalled();
@@ -287,16 +396,21 @@ describe('WorkflowEngineService', () => {
         workflowInstance: {
           findFirst: jest.fn().mockResolvedValue(null),
           create: jest.fn().mockResolvedValue({
-            id: 'wi1', currentStep: 1, status: 'running',
-            entityType: 'purchase_order', entityId: 'e1',
+            id: 'wi1',
+            currentStep: 1,
+            status: 'running',
+            entityType: 'purchase_order',
+            entityId: 'e1',
           }),
         },
         userRole: { findMany: jest.fn().mockResolvedValue([]) },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       const inst: any = await service.start(tenantId, 'r1', {
-        definitionId: 'd1', entityType: 'purchase_order', entityId: 'e1',
-      } as any);
+        definitionId: 'd1',
+        entityType: 'purchase_order',
+        entityId: 'e1',
+      });
       expect(inst.id).toBe('wi1');
       expect(notifications.create).toHaveBeenCalledWith(
         tenantId,
@@ -308,15 +422,26 @@ describe('WorkflowEngineService', () => {
   it('honours role-based approver eligibility via the user role set', async () => {
     prisma.userRole.findMany.mockResolvedValue([{ roleId: 'role-mgr' }]);
     const roleDef = def([
-      { stepNumber: 1, name: 'Mgr', stepType: 'approval', approverType: 'role', approverId: 'role-mgr' },
+      {
+        stepNumber: 1,
+        name: 'Mgr',
+        stepType: 'approval',
+        approverType: 'role',
+        approverId: 'role-mgr',
+      },
     ]);
     const tx = {
       workflowInstance: {
         findFirst: jest
           .fn()
           .mockResolvedValueOnce({
-            id: 'wi1', status: 'running', currentStep: 1, requestedBy: 'r1',
-            entityType: 'po', entityId: 'po1', definition: roleDef,
+            id: 'wi1',
+            status: 'running',
+            currentStep: 1,
+            requestedBy: 'r1',
+            entityType: 'po',
+            entityId: 'po1',
+            definition: roleDef,
           })
           .mockResolvedValueOnce({ id: 'wi1', status: 'completed' }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),

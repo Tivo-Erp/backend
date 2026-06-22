@@ -65,8 +65,13 @@ export class LeaveController {
 
   @Post('leave-requests')
   @RequirePermissions('hrm:leave:create')
-  @ApiOperation({ summary: 'Submit a leave request (server computes working days)' })
-  @ApiResponse({ status: 400, description: 'Insufficient balance / invalid dates' })
+  @ApiOperation({
+    summary: 'Submit a leave request (server computes working days)',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Insufficient balance / invalid dates',
+  })
   createRequest(
     @CurrentTenant() tenantId: string,
     @Body() dto: CreateLeaveRequestDto,
@@ -89,7 +94,10 @@ export class LeaveController {
   @RequirePermissions('hrm:leave:approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve a leave request (deducts balance)' })
-  @ApiResponse({ status: 409, description: 'Not pending / insufficient balance' })
+  @ApiResponse({
+    status: 409,
+    description: 'Not pending / insufficient balance',
+  })
   approve(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,

@@ -4,6 +4,7 @@ import { PaymentService } from './payment.service.js';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { DocumentSequenceService } from '../../../infra/sequence/document-sequence.service.js';
 import { JournalBatchService } from './journal-batch.service.js';
+import { OutboxService } from '../../../infra/events/outbox.service.js';
 
 const makePrisma = () => ({ $transaction: jest.fn() });
 
@@ -25,6 +26,7 @@ describe('PaymentService', () => {
         { provide: PrismaService, useFactory: makePrisma },
         { provide: DocumentSequenceService, useValue: sequences },
         { provide: JournalBatchService, useValue: journals },
+        { provide: OutboxService, useValue: { record: jest.fn() } },
       ],
     }).compile();
 

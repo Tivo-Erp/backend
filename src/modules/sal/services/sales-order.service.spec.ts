@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { SalesOrderService } from './sales-order.service.js';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { DocumentSequenceService } from '../../../infra/sequence/document-sequence.service.js';
+import { OutboxService } from '../../../infra/events/outbox.service.js';
 
 const makePrisma = () => ({
   $transaction: jest.fn(),
@@ -29,6 +30,7 @@ describe('SalesOrderService', () => {
         SalesOrderService,
         { provide: PrismaService, useFactory: makePrisma },
         { provide: DocumentSequenceService, useValue: sequences },
+        { provide: OutboxService, useValue: { record: jest.fn() } },
       ],
     }).compile();
 

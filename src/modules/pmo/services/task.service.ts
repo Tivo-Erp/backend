@@ -1,21 +1,21 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { safeSortBy } from '../../../common/utils/sort.util.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { TASK_FIELD_CONFIG } from '../config/pmo.field-config.js';
-import {
-  CreateTaskDto,
-  TaskQueryDto,
-  UpdateTaskDto,
-} from '../dto/pmo.dto.js';
+import { CreateTaskDto, TaskQueryDto, UpdateTaskDto } from '../dto/pmo.dto.js';
 
 const dec = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n);
-const TASK_SORTABLE = ['createdAt', 'updatedAt', 'title', 'status', 'dueDate', 'sortOrder'] as const;
+const TASK_SORTABLE = [
+  'createdAt',
+  'updatedAt',
+  'title',
+  'status',
+  'dueDate',
+  'sortOrder',
+] as const;
 
 @Injectable()
 export class TaskService {
@@ -44,7 +44,8 @@ export class TaskService {
           status,
           priority: dto.priority ?? 'medium',
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-          estimatedHours: dto.estimatedHours != null ? dec(dto.estimatedHours) : null,
+          estimatedHours:
+            dto.estimatedHours != null ? dec(dto.estimatedHours) : null,
           ...(status === 'done' && { completedAt: new Date() }),
         },
       });
@@ -53,7 +54,12 @@ export class TaskService {
     });
   }
 
-  async update(tenantId: string, projectId: string, taskId: string, dto: UpdateTaskDto) {
+  async update(
+    tenantId: string,
+    projectId: string,
+    taskId: string,
+    dto: UpdateTaskDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const task = await tx.projectTask.findFirst({
         where: { id: taskId, tenantId, projectId },
@@ -62,7 +68,8 @@ export class TaskService {
       if (!task) throw new NotFoundException('PMO_TASK_NOT_FOUND');
 
       const completing = dto.status === 'done' && task.status !== 'done';
-      const reopening = dto.status && dto.status !== 'done' && task.status === 'done';
+      const reopening =
+        dto.status && dto.status !== 'done' && task.status === 'done';
 
       const updated = await tx.projectTask.update({
         where: { id: taskId },
@@ -75,19 +82,37 @@ export class TaskService {
           ...(dto.estimatedHours !== undefined && {
             estimatedHours: dec(dto.estimatedHours),
           }),
-          ...(dto.actualHours !== undefined && { actualHours: dec(dto.actualHours) }),
+          ...(dto.actualHours !== undefined && {
+            actualHours: dec(dto.actualHours),
+          }),
           ...(completing && { completedAt: new Date() }),
           ...(reopening && { completedAt: null }),
         },
       });
-      if (dto.status !== undefined) await this.recomputeProgress(tx, tenantId, projectId);
+      if (dto.status !== undefined)
+        await this.recomputeProgress(tx, tenantId, projectId);
       return updated;
     });
   }
 
-  async findAll(tenantId: string, projectId: string, query: TaskQueryDto, userRoles: string[]) {
-    const select = FieldSelector.buildPrismaSelect(query.fields, userRoles, TASK_FIELD_CONFIG);
-    const { page = 1, limit = 20, sortOrder = 'asc', status, assigneeId } = query;
+  async findAll(
+    tenantId: string,
+    projectId: string,
+    query: TaskQueryDto,
+    userRoles: string[],
+  ) {
+    const select = FieldSelector.buildPrismaSelect(
+      query.fields,
+      userRoles,
+      TASK_FIELD_CONFIG,
+    );
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'asc',
+      status,
+      assigneeId,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, TASK_SORTABLE, 'sortOrder');
 
     const where: Prisma.ProjectTaskWhereInput = {
@@ -120,7 +145,9 @@ export class TaskService {
     // or deflate the percentage relative to milestone-level progress.
     const [total, done] = await Promise.all([
       tx.projectTask.count({ where: { tenantId, projectId, parentId: null } }),
-      tx.projectTask.count({ where: { tenantId, projectId, parentId: null, status: 'done' } }),
+      tx.projectTask.count({
+        where: { tenantId, projectId, parentId: null, status: 'done' },
+      }),
     ]);
     const progressPct = total === 0 ? 0 : Math.round((done / total) * 100);
     await tx.project.updateMany({

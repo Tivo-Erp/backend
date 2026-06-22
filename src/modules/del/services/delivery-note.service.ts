@@ -1,12 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
+import { isTenantModuleEntityKey } from '../../../infra/storage/storage-key.util.js';
 import { DocumentSequenceService } from '../../../infra/sequence/document-sequence.service.js';
+import { ShipmentService } from '../../shp/services/shipment.service.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { safeSortBy } from '../../../common/utils/sort.util.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
@@ -26,7 +31,13 @@ import {
 const dec = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n);
 const ZERO = new Prisma.Decimal(0);
 
-const DN_SORTABLE = ['createdAt', 'updatedAt', 'dnNumber', 'status', 'shipDate'] as const;
+const DN_SORTABLE = [
+  'createdAt',
+  'updatedAt',
+  'dnNumber',
+  'status',
+  'shipDate',
+] as const;
 const MAX_RETRY = 3;
 
 /** SO statuses from which delivery notes may be created. */
@@ -34,9 +45,13 @@ const DELIVERABLE_SO_STATUSES = ['approved', 'processing'];
 
 @Injectable()
 export class DeliveryNoteService {
+  private readonly logger = new Logger(DeliveryNoteService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sequences: DocumentSequenceService,
+    @Inject(forwardRef(() => ShipmentService))
+    private readonly shipments: ShipmentService,
   ) {}
 
   // ── Create from SO ────────────────────────────────────────────
@@ -65,11 +80,18 @@ export class DeliveryNoteService {
       for (const line of dto.lines) {
         const soLine = soLineById.get(line.soLineId);
         if (!soLine)
-          throw new NotFoundException(`SAL_SO_LINE_NOT_FOUND: ${line.soLineId}`);
+          throw new NotFoundException(
+            `SAL_SO_LINE_NOT_FOUND: ${line.soLineId}`,
+          );
 
         const item = await tx.item.findFirst({
           where: { id: soLine.itemId, tenantId, deletedAt: null },
-          select: { id: true, sku: true, isBatchTracked: true, isSerialTracked: true },
+          select: {
+            id: true,
+            sku: true,
+            isBatchTracked: true,
+            isSerialTracked: true,
+          },
         });
         if (!item)
           throw new NotFoundException(`MAT_ITEM_NOT_FOUND: ${soLine.itemId}`);
@@ -80,7 +102,11 @@ export class DeliveryNoteService {
 
         // Remaining = SO line qty − already shipped − qty already in open DNs.
         const shipped = dec(soLine.shippedQty);
-        const openInDns = await this.openDnQtyForSoLine(tx, tenantId, line.soLineId);
+        const openInDns = await this.openDnQtyForSoLine(
+          tx,
+          tenantId,
+          line.soLineId,
+        );
         const remaining = dec(soLine.quantity).sub(shipped).sub(openInDns);
         const qty = dec(line.quantity);
         if (qty.gt(remaining)) {
@@ -101,7 +127,12 @@ export class DeliveryNoteService {
         });
       }
 
-      const dnNumber = await this.sequences.getNextNumber(tenantId, 'DN', undefined, tx);
+      const dnNumber = await this.sequences.getNextNumber(
+        tenantId,
+        'DN',
+        undefined,
+        tx,
+      );
 
       const dn = await tx.deliveryNote.create({
         data: {
@@ -146,7 +177,10 @@ export class DeliveryNoteService {
         // Exclude terminal statuses. 'delivered' DNs already have their qty
         // reflected in soLine.shippedQty (incremented by submitPod), so
         // counting them here would double-subtract against the remaining qty.
-        dn: { tenantId, status: { notIn: ['returned', 'failed', 'delivered'] } },
+        dn: {
+          tenantId,
+          status: { notIn: ['returned', 'failed', 'delivered'] },
+        },
       },
       select: { quantity: true },
     });
@@ -162,11 +196,17 @@ export class DeliveryNoteService {
         include: { lines: true },
       });
       if (!dn) throw new NotFoundException('DEL_DN_NOT_FOUND');
-      if (dn.status !== 'draft') throw new ConflictException('DEL_DN_NOT_DRAFT');
+      if (dn.status !== 'draft')
+        throw new ConflictException('DEL_DN_NOT_DRAFT');
 
       // Validate available stock per line at the DN warehouse (warehouse-level).
       for (const line of dn.lines) {
-        const available = await this.availableQty(tx, tenantId, dn.warehouseId, line.itemId);
+        const available = await this.availableQty(
+          tx,
+          tenantId,
+          dn.warehouseId,
+          line.itemId,
+        );
         if (available.lt(dec(line.quantity))) {
           const item = await tx.item.findFirst({
             where: { id: line.itemId },
@@ -183,7 +223,10 @@ export class DeliveryNoteService {
         data: { status: 'picking' },
       });
       if (count === 0) throw new ConflictException('DEL_DN_NOT_DRAFT');
-      return tx.deliveryNote.findFirst({ where: { id, tenantId }, include: { lines: true } });
+      return tx.deliveryNote.findFirst({
+        where: { id, tenantId },
+        include: { lines: true },
+      });
     });
   }
 
@@ -194,12 +237,16 @@ export class DeliveryNoteService {
         include: { lines: true },
       });
       if (!dn) throw new NotFoundException('DEL_DN_NOT_FOUND');
-      if (dn.status !== 'picking') throw new ConflictException('DEL_DN_NOT_PICKING');
+      if (dn.status !== 'picking')
+        throw new ConflictException('DEL_DN_NOT_PICKING');
 
       const lineById = new Map(dn.lines.map((l) => [l.id, l]));
       for (const pick of dto.lines) {
         const line = lineById.get(pick.dnLineId);
-        if (!line) throw new NotFoundException(`DEL_DN_LINE_NOT_FOUND: ${pick.dnLineId}`);
+        if (!line)
+          throw new NotFoundException(
+            `DEL_DN_LINE_NOT_FOUND: ${pick.dnLineId}`,
+          );
         // Picked qty must match planned qty (no short-pick without adjustment).
         if (!dec(pick.pickedQty).equals(dec(line.quantity))) {
           throw new BadRequestException(
@@ -222,13 +269,17 @@ export class DeliveryNoteService {
         data: { status: 'picked' },
       });
       if (count === 0) throw new ConflictException('DEL_DN_NOT_PICKING');
-      return tx.deliveryNote.findFirst({ where: { id, tenantId }, include: { lines: true } });
+      return tx.deliveryNote.findFirst({
+        where: { id, tenantId },
+        include: { lines: true },
+      });
     });
   }
 
   async pack(tenantId: string, id: string, dto: ConfirmPackedDto) {
     const dn = await this.require(tenantId, id);
-    if (dn.status !== 'picked') throw new ConflictException('DEL_DN_NOT_PICKED');
+    if (dn.status !== 'picked')
+      throw new ConflictException('DEL_DN_NOT_PICKED');
     const { count } = await this.prisma.deliveryNote.updateMany({
       where: { id, tenantId, status: 'picked' },
       data: {
@@ -242,9 +293,15 @@ export class DeliveryNoteService {
     return this.prisma.deliveryNote.findFirst({ where: { id, tenantId } });
   }
 
-  async dispatch(tenantId: string, id: string, dto: DispatchDeliveryDto) {
+  async dispatch(
+    tenantId: string,
+    userId: string,
+    id: string,
+    dto: DispatchDeliveryDto,
+  ) {
     const dn = await this.require(tenantId, id);
-    if (dn.status !== 'packed') throw new ConflictException('DEL_DN_NOT_PACKED');
+    if (dn.status !== 'packed')
+      throw new ConflictException('DEL_DN_NOT_PACKED');
 
     if (dto.deliveryMethod === 'self_delivery' && !dto.driverName) {
       throw new BadRequestException('DEL_DRIVER_REQUIRED');
@@ -252,8 +309,18 @@ export class DeliveryNoteService {
     if (dto.deliveryMethod === 'carrier' && !dto.carrierId) {
       throw new BadRequestException('DEL_CARRIER_REQUIRED');
     }
-    // NOTE: carrier Shipment auto-creation + label/tracking is M-SHP (deferred);
-    // here we only record the carrier selection on the DN.
+
+    // SHP-003: for a carrier dispatch, validate the carrier is active before we
+    // transition the DN (so a bad carrier id fails fast and leaves the DN packed).
+    if (dto.deliveryMethod === 'carrier') {
+      const carrier = await this.prisma.carrier.findFirst({
+        where: { id: dto.carrierId, tenantId },
+        select: { id: true, isActive: true },
+      });
+      if (!carrier) throw new NotFoundException('SHP_CARRIER_NOT_FOUND');
+      if (!carrier.isActive)
+        throw new ConflictException('SHP_CARRIER_INACTIVE');
+    }
 
     const { count } = await this.prisma.deliveryNote.updateMany({
       where: { id, tenantId, status: 'packed' },
@@ -268,12 +335,36 @@ export class DeliveryNoteService {
       },
     });
     if (count === 0) throw new ConflictException('DEL_DN_NOT_PACKED');
+
+    // SHP-003: auto-create the carrier shipment (tracking + label) now that the
+    // DN is out_for_delivery. Best-effort — a shipment failure does not roll
+    // back the dispatch; the shipment can be created/retried via the SHP API.
+    if (dto.deliveryMethod === 'carrier' && this.shipments) {
+      try {
+        await this.shipments.createForDelivery(
+          tenantId,
+          userId,
+          id,
+          dto.carrierId!,
+          { serviceType: dto.serviceType },
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Auto-create shipment for DN ${id} failed: ${(err as Error).message}`,
+        );
+      }
+    }
     return this.prisma.deliveryNote.findFirst({ where: { id, tenantId } });
   }
 
   // ── POD → delivered (§1.5 completion side effects) ────────────
 
-  async submitPod(tenantId: string, userId: string, id: string, dto: SubmitPODDto) {
+  async submitPod(
+    tenantId: string,
+    userId: string,
+    id: string,
+    dto: SubmitPODDto,
+  ) {
     if (
       (dto.podType === 'signature' || dto.podType === 'both') &&
       !dto.signatureDataUrl
@@ -285,6 +376,13 @@ export class DeliveryNoteService {
       (!dto.photoUrls || dto.photoUrls.length === 0)
     ) {
       throw new BadRequestException('DEL_POD_PHOTO_REQUIRED');
+    }
+    // POD photos must be storage KEYS under this tenant's `del/{dnId}` prefix
+    // (issued by the files presign endpoint) — never arbitrary client URLs.
+    for (const key of dto.photoUrls ?? []) {
+      if (!isTenantModuleEntityKey(tenantId, 'del', id, key)) {
+        throw new BadRequestException('DEL_POD_PHOTO_KEY_INVALID');
+      }
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -315,40 +413,122 @@ export class DeliveryNoteService {
       }
 
       // §1.5: deduct stock OUT, release reservation, advance SO shipped qty.
-      for (const line of dn.lines) {
-        const qty = dec(line.quantity);
-        const costPerUnit = await this.shipStock(
-          tx,
-          tenantId,
-          dn.warehouseId,
-          line.itemId,
-          qty,
-        );
-        await tx.stockMovement.create({
-          data: {
-            tenantId,
-            itemId: line.itemId,
-            warehouseId: dn.warehouseId,
-            movementType: 'sales_shipment',
-            direction: 'OUT',
-            quantity: qty,
-            uom: line.uom,
-            costPerUnit,
-            referenceType: 'DeliveryNote',
-            referenceId: dn.id,
-            binId: line.actualBinId ?? line.binId,
-            lotId: line.actualLotId ?? line.lotId,
-            createdBy: userId,
-          },
-        });
-        await tx.salesOrderLine.update({
-          where: { id: line.soLineId },
-          data: { shippedQty: { increment: qty } },
-        });
-      }
+      await this.applyDeliveryEffects(tx, tenantId, userId, dn);
+      return tx.deliveryNote.findFirst({
+        where: { id, tenantId },
+        include: { lines: true },
+      });
+    });
+  }
 
-      await this.recomputeSoStatus(tx, tenantId, dn.soId);
-      return tx.deliveryNote.findFirst({ where: { id, tenantId }, include: { lines: true } });
+  /**
+   * §1.5 completion side effects, shared by {@link submitPod} and the
+   * shipment-driven {@link completeFromShipment}: deduct stock OUT per line,
+   * release the matching reservation, and advance the SO shipped quantity.
+   */
+  private async applyDeliveryEffects(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    userId: string,
+    dn: Prisma.DeliveryNoteGetPayload<{ include: { lines: true } }>,
+  ) {
+    for (const line of dn.lines) {
+      const qty = dec(line.quantity);
+      const costPerUnit = await this.shipStock(
+        tx,
+        tenantId,
+        dn.warehouseId,
+        line.itemId,
+        qty,
+      );
+      await tx.stockMovement.create({
+        data: {
+          tenantId,
+          itemId: line.itemId,
+          warehouseId: dn.warehouseId,
+          movementType: 'sales_shipment',
+          direction: 'OUT',
+          quantity: qty,
+          uom: line.uom,
+          costPerUnit,
+          referenceType: 'DeliveryNote',
+          referenceId: dn.id,
+          binId: line.actualBinId ?? line.binId,
+          lotId: line.actualLotId ?? line.lotId,
+          createdBy: userId,
+        },
+      });
+      await tx.salesOrderLine.update({
+        where: { id: line.soLineId },
+        data: { shippedQty: { increment: qty } },
+      });
+    }
+    await this.recomputeSoStatus(tx, tenantId, dn.soId);
+  }
+
+  // ── Shipment-driven sync (SHP-002 webhook → DN, §1.5) ─────────
+
+  /**
+   * Carrier reported the shipment as delivered: run the §1.5 completion side
+   * effects and move the DN out_for_delivery → delivered. Idempotent — a DN
+   * already past out_for_delivery is left untouched (concurrent/duplicate
+   * webhooks). Uses the DN's creator as the stock-movement actor.
+   */
+  async completeFromShipment(tenantId: string, dnId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const dn = await tx.deliveryNote.findFirst({
+        where: { id: dnId, tenantId },
+        include: { lines: true },
+      });
+      if (!dn) throw new NotFoundException('DEL_DN_NOT_FOUND');
+      if (dn.status !== 'out_for_delivery') {
+        // Already delivered/returned/etc. — nothing to do.
+        return { id: dnId, status: dn.status, changed: false };
+      }
+      const claimed = await tx.deliveryNote.updateMany({
+        where: { id: dnId, tenantId, status: 'out_for_delivery' },
+        data: {
+          status: 'delivered',
+          deliveredAt: new Date(),
+          podType: 'otp',
+          podNotes: 'Auto-completed from carrier delivery confirmation',
+        },
+      });
+      if (claimed.count === 0) {
+        return { id: dnId, status: dn.status, changed: false };
+      }
+      await this.applyDeliveryEffects(tx, tenantId, dn.createdBy, dn);
+      return { id: dnId, status: 'delivered', changed: true };
+    });
+  }
+
+  /**
+   * Carrier reported the shipment as failed: move out_for_delivery → failed and
+   * bump retryCount, mirroring a manual {@link fail}. Idempotent.
+   */
+  async failFromShipment(tenantId: string, dnId: string, reason: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const dn = await tx.deliveryNote.findFirst({
+        where: { id: dnId, tenantId },
+        select: { id: true, status: true },
+      });
+      if (!dn) throw new NotFoundException('DEL_DN_NOT_FOUND');
+      if (dn.status !== 'out_for_delivery') {
+        return { id: dnId, status: dn.status, changed: false };
+      }
+      const claimed = await tx.deliveryNote.updateMany({
+        where: { id: dnId, tenantId, status: 'out_for_delivery' },
+        data: {
+          status: 'failed',
+          failureReason: 'other',
+          retryCount: { increment: 1 },
+          notes: reason.slice(0, 1000),
+        },
+      });
+      if (claimed.count === 0) {
+        return { id: dnId, status: dn.status, changed: false };
+      }
+      return { id: dnId, status: 'failed', changed: true };
     });
   }
 
@@ -373,7 +553,8 @@ export class DeliveryNoteService {
           notes: dto.notes ?? undefined,
         },
       });
-      if (count === 0) throw new ConflictException('DEL_DN_NOT_OUT_FOR_DELIVERY');
+      if (count === 0)
+        throw new ConflictException('DEL_DN_NOT_OUT_FOR_DELIVERY');
       return tx.deliveryNote.findFirst({ where: { id, tenantId } });
     });
   }
@@ -381,7 +562,8 @@ export class DeliveryNoteService {
   /** Re-attempt a failed delivery (failed → out_for_delivery) while retries remain. */
   async redispatch(tenantId: string, id: string) {
     const dn = await this.require(tenantId, id);
-    if (dn.status !== 'failed') throw new ConflictException('DEL_DN_NOT_FAILED');
+    if (dn.status !== 'failed')
+      throw new ConflictException('DEL_DN_NOT_FAILED');
     if (dn.retryCount >= MAX_RETRY) {
       throw new ConflictException('DEL_MAX_RETRY_EXCEEDED');
     }
@@ -400,7 +582,8 @@ export class DeliveryNoteService {
         include: { lines: true },
       });
       if (!dn) throw new NotFoundException('DEL_DN_NOT_FOUND');
-      if (dn.status !== 'failed') throw new ConflictException('DEL_DN_NOT_FAILED');
+      if (dn.status !== 'failed')
+        throw new ConflictException('DEL_DN_NOT_FAILED');
 
       const returnWh = await tx.warehouse.findFirst({
         where: { id: dto.returnWarehouseId, tenantId, isActive: true },
@@ -425,7 +608,13 @@ export class DeliveryNoteService {
       // the quantity becomes available again. No onHand change, shippedQty
       // unchanged (it was never incremented). An audit movement is recorded.
       for (const line of dn.lines) {
-        await this.releaseReservation(tx, tenantId, dn.warehouseId, line.itemId, dec(line.quantity));
+        await this.releaseReservation(
+          tx,
+          tenantId,
+          dn.warehouseId,
+          line.itemId,
+          dec(line.quantity),
+        );
         await tx.stockMovement.create({
           data: {
             tenantId,
@@ -443,19 +632,35 @@ export class DeliveryNoteService {
         });
       }
 
-      return tx.deliveryNote.findFirst({ where: { id, tenantId }, include: { lines: true } });
+      return tx.deliveryNote.findFirst({
+        where: { id, tenantId },
+        include: { lines: true },
+      });
     });
   }
 
   // ── Queries ───────────────────────────────────────────────────
 
-  async findAll(tenantId: string, query: DeliveryNoteQueryDto, userRoles: string[]) {
+  async findAll(
+    tenantId: string,
+    query: DeliveryNoteQueryDto,
+    userRoles: string[],
+  ) {
     const select = FieldSelector.buildPrismaSelect(
       query.fields,
       userRoles,
       DELIVERY_NOTE_FIELD_CONFIG,
     );
-    const { page = 1, limit = 20, sortOrder = 'desc', status, soId, warehouseId, customerId, search } = query;
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      status,
+      soId,
+      warehouseId,
+      customerId,
+      search,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, DN_SORTABLE);
 
     const where: Prisma.DeliveryNoteWhereInput = {
@@ -481,7 +686,12 @@ export class DeliveryNoteService {
     return PaginatedResponseDto.create(data, total, page, limit);
   }
 
-  async findOne(tenantId: string, id: string, userRoles: string[], fields?: string) {
+  async findOne(
+    tenantId: string,
+    id: string,
+    userRoles: string[],
+    fields?: string,
+  ) {
     const select = FieldSelector.buildPrismaSelect(
       fields,
       userRoles,
@@ -505,7 +715,9 @@ export class DeliveryNoteService {
           lte: new Date(query.dateTo + 'T23:59:59.999Z'),
         },
         ...(query.warehouseId && { warehouseId: query.warehouseId }),
-        ...(query.driverName && { driverName: { contains: query.driverName, mode: 'insensitive' } }),
+        ...(query.driverName && {
+          driverName: { contains: query.driverName, mode: 'insensitive' },
+        }),
         status: { notIn: ['delivered', 'returned'] },
       },
       orderBy: { shipDate: 'asc' },
@@ -611,7 +823,11 @@ export class DeliveryNoteService {
     );
     // Do not overwrite terminal SO statuses (cancelled, on_hold).
     await tx.salesOrder.updateMany({
-      where: { id: soId, tenantId, status: { notIn: ['cancelled', 'on_hold'] } },
+      where: {
+        id: soId,
+        tenantId,
+        status: { notIn: ['cancelled', 'on_hold'] },
+      },
       data: { status: fullyShipped ? 'fulfilled' : 'partial_shipped' },
     });
   }

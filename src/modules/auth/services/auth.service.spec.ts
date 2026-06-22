@@ -1,13 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { HttpStatus } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service.js';
 
 jest.mock('bcryptjs');
 import { PrismaService } from '../../../infra/database/prisma.service.js';
-import { BusinessException } from '../../../common/exceptions/business.exception.js';
+import { AuthTokenService } from './auth-token.service.js';
 
 const mockUser = (overrides = {}) => ({
   id: 'user-uuid-1',
@@ -42,8 +41,14 @@ const mockPrisma = {
   refreshToken: {
     create: jest.fn(),
     findUnique: jest.fn(),
+    update: jest.fn(),
     updateMany: jest.fn(),
   },
+};
+
+const mockAuthTokens = {
+  issue: jest.fn().mockResolvedValue('challenge-token'),
+  consume: jest.fn(),
 };
 
 const mockJwtService = {
@@ -76,6 +81,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: AuthTokenService, useValue: mockAuthTokens },
       ],
     }).compile();
 
@@ -83,8 +89,11 @@ describe('AuthService', () => {
 
     // Default: loadRolesAndPermissions returns empty
     mockPrisma.userRole.findMany.mockResolvedValue([]);
-    // Default: refresh token create ok
-    mockPrisma.refreshToken.create.mockResolvedValue({});
+    // Default: refresh token create returns a row id (issueTokens needs it)
+    mockPrisma.refreshToken.create.mockResolvedValue({ id: 'rt-new-id' });
+    mockPrisma.refreshToken.update.mockResolvedValue({});
+    // Default: rotation claim succeeds
+    mockPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
     // Default: user update ok
     mockPrisma.user.update.mockResolvedValue({});
   });
@@ -96,7 +105,10 @@ describe('AuthService', () => {
       const user = mockUser();
       mockPrisma.user.findMany.mockResolvedValue([user]);
 
-      const result = await service.login({ email: 'owner@acme.com', password: 'anypass' });
+      const result: any = await service.login({
+        email: 'owner@acme.com',
+        password: 'anypass',
+      });
 
       expect(result.accessToken).toBe('signed.jwt.token');
       expect(result.refreshToken).toBeDefined();
@@ -105,34 +117,45 @@ describe('AuthService', () => {
       expect(result.user.tenantId).toBe('tenant-uuid-1');
     });
 
-    it('wrong password — increments failedLoginCount, throws AUTH_INVALID_CREDENTIALS', async () => {
+    it('wrong password — atomically increments failedLoginCount, throws AUTH_INVALID_CREDENTIALS', async () => {
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
       const user = mockUser({ failedLoginCount: 0 });
       mockPrisma.user.findMany.mockResolvedValue([user]);
+      mockPrisma.user.update.mockResolvedValue({
+        ...user,
+        failedLoginCount: 1,
+      });
 
       await expect(
         service.login({ email: 'owner@acme.com', password: 'wrongpassword' }),
       ).rejects.toMatchObject({ code: 'AUTH_INVALID_CREDENTIALS' });
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ failedLoginCount: 1 }) }),
+        expect.objectContaining({
+          data: { failedLoginCount: { increment: 1 } },
+        }),
       );
     });
 
-    it('5th failed attempt — locks account for 30 min, throws AUTH_ACCOUNT_LOCKED', async () => {
+    it('5th failed attempt — locks account but still throws generic AUTH_INVALID_CREDENTIALS', async () => {
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
       const user = mockUser({ failedLoginCount: 4 });
       mockPrisma.user.findMany.mockResolvedValue([user]);
+      mockPrisma.user.update.mockResolvedValueOnce({
+        ...user,
+        failedLoginCount: 5,
+        lockedUntil: null,
+      });
 
       await expect(
         service.login({ email: 'owner@acme.com', password: 'wrongpassword' }),
-      ).rejects.toMatchObject({ code: 'AUTH_ACCOUNT_LOCKED' });
+      ).rejects.toMatchObject({ code: 'AUTH_INVALID_CREDENTIALS' });
 
-      const updateCall = mockPrisma.user.update.mock.calls[0][0];
-      expect(updateCall.data.lockedUntil).toBeInstanceOf(Date);
+      const lockCall = mockPrisma.user.update.mock.calls[1][0];
+      expect(lockCall.data.lockedUntil).toBeInstanceOf(Date);
     });
 
-    it('locked account (lockedUntil in future) — throws AUTH_ACCOUNT_LOCKED without checking password', async () => {
+    it('locked account (lockedUntil in future) — throws AUTH_ACCOUNT_LOCKED after valid password', async () => {
       const futureDate = new Date(Date.now() + 20 * 60 * 1000);
       const user = mockUser({ lockedUntil: futureDate });
       mockPrisma.user.findMany.mockResolvedValue([user]);
@@ -142,7 +165,7 @@ describe('AuthService', () => {
       ).rejects.toMatchObject({ code: 'AUTH_ACCOUNT_LOCKED' });
     });
 
-    it('locked account (lockedUntil in past) — auto-unlocks and proceeds to login', async () => {
+    it('locked account (lockedUntil in past) — proceeds to login and resets lock state', async () => {
       const pastDate = new Date(Date.now() - 60 * 1000);
       const user = mockUser({ lockedUntil: pastDate, failedLoginCount: 5 });
       mockPrisma.user.findMany.mockResolvedValue([user]);
@@ -150,9 +173,14 @@ describe('AuthService', () => {
       // Login should succeed (bcrypt.compare mocked to true by default)
       await service.login({ email: 'owner@acme.com', password: 'anypass' });
 
-      // First update call must be the auto-unlock
+      // Success bookkeeping resets the lockout state
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { failedLoginCount: 0, lockedUntil: null } }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            failedLoginCount: 0,
+            lockedUntil: null,
+          }),
+        }),
       );
     });
 
@@ -175,7 +203,9 @@ describe('AuthService', () => {
     });
 
     it('suspended tenant — throws AUTH_TENANT_SUSPENDED', async () => {
-      const user = mockUser({ tenant: { id: 'tenant-uuid-1', slug: 'acme', status: 'suspended' } });
+      const user = mockUser({
+        tenant: { id: 'tenant-uuid-1', slug: 'acme', status: 'suspended' },
+      });
       mockPrisma.user.findMany.mockResolvedValue([user]);
 
       await expect(
@@ -215,9 +245,11 @@ describe('AuthService', () => {
   // ─── refresh ─────────────────────────────────────────────────────────────────
 
   describe('refresh()', () => {
-    it('valid token — returns new accessToken', async () => {
+    it('valid token — rotates: returns new access + refresh token', async () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
-        token: 'valid-token',
+        id: 'rt-old-id',
+        tokenHash: 'hash-of-valid-token',
+        familyId: 'fam-1',
         revokedAt: null,
         expiresAt: new Date(Date.now() + 60000),
         userId: 'user-uuid-1',
@@ -227,12 +259,24 @@ describe('AuthService', () => {
       const result = await service.refresh({ refreshToken: 'valid-token' });
 
       expect(result.accessToken).toBe('signed.jwt.token');
+      expect(result.refreshToken).toBeDefined();
       expect(result.expiresIn).toBe(3600);
+      // old token claimed (revoked) then linked to its replacement
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'rt-old-id' }),
+        }),
+      );
+      expect(mockPrisma.refreshToken.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { replacedById: 'rt-new-id' } }),
+      );
     });
 
-    it('revoked token — throws AUTH_REFRESH_TOKEN_INVALID', async () => {
+    it('reused (already revoked) token — revokes family, throws AUTH_REFRESH_TOKEN_REUSED', async () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
-        token: 'revoked-token',
+        id: 'rt-old-id',
+        tokenHash: 'hash-of-revoked-token',
+        familyId: 'fam-1',
         revokedAt: new Date(),
         expiresAt: new Date(Date.now() + 60000),
         userId: 'user-uuid-1',
@@ -240,7 +284,13 @@ describe('AuthService', () => {
 
       await expect(
         service.refresh({ refreshToken: 'revoked-token' }),
-      ).rejects.toMatchObject({ code: 'AUTH_REFRESH_TOKEN_INVALID' });
+      ).rejects.toMatchObject({ code: 'AUTH_REFRESH_TOKEN_REUSED' });
+      // whole family revoked on reuse
+      expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ familyId: 'fam-1' }),
+        }),
+      );
     });
 
     it('token not found — throws AUTH_REFRESH_TOKEN_INVALID', async () => {
@@ -253,7 +303,9 @@ describe('AuthService', () => {
 
     it('expired token — throws AUTH_REFRESH_TOKEN_EXPIRED', async () => {
       mockPrisma.refreshToken.findUnique.mockResolvedValue({
-        token: 'old-token',
+        id: 'rt-old-id',
+        tokenHash: 'hash-of-old-token',
+        familyId: 'fam-1',
         revokedAt: null,
         expiresAt: new Date(Date.now() - 1000), // past
         userId: 'user-uuid-1',
@@ -275,7 +327,7 @@ describe('AuthService', () => {
 
       expect(mockPrisma.refreshToken.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { token: 'some-refresh-token', revokedAt: null },
+          where: { tokenHash: expect.any(String), revokedAt: null },
           data: expect.objectContaining({ revokedAt: expect.any(Date) }),
         }),
       );

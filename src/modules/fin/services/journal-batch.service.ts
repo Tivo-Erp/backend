@@ -103,7 +103,9 @@ export class JournalBatchService {
   }
 
   /** Validates lines and returns Decimal totals (rounded to 2dp). */
-  private validateEntries(entries: InternalJournalInput['entries'] | JournalEntryLineDto[]) {
+  private validateEntries(
+    entries: InternalJournalInput['entries'] | JournalEntryLineDto[],
+  ) {
     if (!entries || entries.length < 2) {
       throw new BadRequestException('FIN_JOURNAL_MIN_TWO_ENTRIES');
     }
@@ -136,7 +138,7 @@ export class JournalBatchService {
   }
 
   private async assertAccountsExist(
-    tx: any,
+    tx: Prisma.TransactionClient,
     tenantId: string,
     codes: string[],
   ) {
@@ -145,7 +147,7 @@ export class JournalBatchService {
       where: { tenantId, accountCode: { in: unique } },
       select: { accountCode: true },
     });
-    const foundSet = new Set(found.map((a: any) => a.accountCode));
+    const foundSet = new Set(found.map((a) => a.accountCode));
     const missing = unique.filter((c) => !foundSet.has(c));
     if (missing.length > 0) {
       throw new NotFoundException(
@@ -157,7 +159,7 @@ export class JournalBatchService {
   // ── FIN-003 helper: create an already-posted journal in a tx ──
 
   async createPosted(
-    tx: any,
+    tx: Prisma.TransactionClient,
     tenantId: string,
     userId: string,
     input: InternalJournalInput,
@@ -400,7 +402,7 @@ export class JournalBatchService {
     } = query;
     const sortBy = safeSortBy(query.sortBy, JOURNAL_SORTABLE, 'journalDate');
 
-    const where: any = {
+    const where: Prisma.JournalBatchWhereInput = {
       tenantId,
       ...(status && { status }),
       ...(sourceType && { sourceType }),
@@ -411,6 +413,9 @@ export class JournalBatchService {
         },
       }),
     };
+    const orderBy: Prisma.JournalBatchOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
+    };
 
     const [data, total] = await Promise.all([
       this.prisma.journalBatch.findMany({
@@ -418,7 +423,7 @@ export class JournalBatchService {
         select,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
       }),
       this.prisma.journalBatch.count({ where }),
     ]);

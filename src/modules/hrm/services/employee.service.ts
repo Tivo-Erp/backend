@@ -16,7 +16,13 @@ import {
   UpdateEmployeeDto,
 } from '../dto/employee.dto.js';
 
-const EMP_SORTABLE = ['createdAt', 'updatedAt', 'employeeCode', 'joinDate', 'status'] as const;
+const EMP_SORTABLE = [
+  'createdAt',
+  'updatedAt',
+  'employeeCode',
+  'joinDate',
+  'status',
+] as const;
 
 @Injectable()
 export class EmployeeService {
@@ -70,7 +76,9 @@ export class EmployeeService {
       const updated = await this.prisma.employee.update({
         where: { id },
         data: {
-          ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
+          ...(dto.departmentId !== undefined && {
+            departmentId: dto.departmentId,
+          }),
           ...(dto.branchId !== undefined && { branchId: dto.branchId }),
           ...(dto.position !== undefined && { position: dto.position }),
           ...(dto.status !== undefined && { status: dto.status }),
@@ -108,17 +116,30 @@ export class EmployeeService {
     // in toResponse rather than via a Prisma select.
     const fields = new Set(
       Object.keys(
-        FieldSelector.buildPrismaSelect(query.fields, userRoles, EMPLOYEE_FIELD_CONFIG),
+        FieldSelector.buildPrismaSelect(
+          query.fields,
+          userRoles,
+          EMPLOYEE_FIELD_CONFIG,
+        ),
       ),
     );
-    const { page = 1, limit = 20, sortOrder = 'desc', status, departmentId, search } = query;
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      status,
+      departmentId,
+      search,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, EMP_SORTABLE);
 
     const where: Prisma.EmployeeWhereInput = {
       tenantId,
       ...(status && { status }),
       ...(departmentId && { departmentId }),
-      ...(search && { employeeCode: { contains: search, mode: 'insensitive' } }),
+      ...(search && {
+        employeeCode: { contains: search, mode: 'insensitive' },
+      }),
     };
 
     const [rows, total] = await Promise.all([
@@ -142,11 +163,17 @@ export class EmployeeService {
     canReadPii: boolean,
     queryFields?: string,
   ) {
-    const emp = await this.prisma.employee.findFirst({ where: { id, tenantId } });
+    const emp = await this.prisma.employee.findFirst({
+      where: { id, tenantId },
+    });
     if (!emp) throw new NotFoundException('HRM_EMPLOYEE_NOT_FOUND');
     const fields = new Set(
       Object.keys(
-        FieldSelector.buildPrismaSelect(queryFields, userRoles, EMPLOYEE_FIELD_CONFIG),
+        FieldSelector.buildPrismaSelect(
+          queryFields,
+          userRoles,
+          EMPLOYEE_FIELD_CONFIG,
+        ),
       ),
     );
     return this.toResponse(emp, canReadPii, fields);
@@ -239,7 +266,10 @@ export class EmployeeService {
   }
 
   private rethrowUnique(e: unknown): never {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === 'P2002'
+    ) {
       const target = (e.meta?.target as string[] | undefined)?.join(',') ?? '';
       throw new ConflictException(
         target.includes('userId')

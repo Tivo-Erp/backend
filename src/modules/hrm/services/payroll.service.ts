@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { JournalBatch, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { JournalBatchService } from '../../fin/services/journal-batch.service.js';
+import { OutboxService } from '../../../infra/events/outbox.service.js';
+import { EVENT } from '../../../infra/events/event-catalog.js';
 import { calcPayroll } from './payroll-calc.js';
 import { CalculatePayrollDto, PayrollQueryDto } from '../dto/payroll.dto.js';
 
@@ -28,6 +30,7 @@ export class PayrollService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly journals: JournalBatchService,
+    private readonly outbox: OutboxService,
   ) {}
 
   // ── HRM-002: Calculate a payroll run ──────────────────────────
@@ -212,13 +215,18 @@ export class PayrollService {
         },
       ].filter((e) => e.debitAmount.gt(0) || e.creditAmount.gt(0));
 
-      const batch = await this.journals.createPosted(tx, tenantId, userId, {
-        description: `Payroll ${run.month}/${run.year}`,
-        journalDate,
-        sourceType: 'payroll',
-        sourceId: run.id,
-        entries,
-      });
+      const batch: JournalBatch = await this.journals.createPosted(
+        tx,
+        tenantId,
+        userId,
+        {
+          description: `Payroll ${run.month}/${run.year}`,
+          journalDate,
+          sourceType: 'payroll',
+          sourceId: run.id,
+          entries,
+        },
+      );
 
       // Race-safe claim: only one approval flips draft → approved.
       const claimed = await tx.payrollRun.updateMany({
@@ -227,6 +235,22 @@ export class PayrollService {
       });
       if (claimed.count === 0)
         throw new ConflictException('HRM_PAYROLL_NOT_DRAFT');
+
+      // INF-002: emit hrm.payroll.approved atomically with the approval.
+      await this.outbox.record(tx, {
+        tenantId,
+        aggregateType: 'payroll_run',
+        aggregateId: run.id,
+        eventType: EVENT.PAYROLL_APPROVED,
+        payload: {
+          year: run.year,
+          month: run.month,
+          totalNet: run.totalNet.toString(),
+          totalGross: run.totalGross.toString(),
+          journalBatchId: batch.id,
+          approvedBy: userId,
+        },
+      });
 
       return tx.payrollRun.findFirst({ where: { id, tenantId } });
     });

@@ -1,11 +1,10 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { AuditLogQueryDto } from '../dto/audit-log-query.dto.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { AUDIT_LOG_FIELD_CONFIG } from '../config/audit-log.field-config.js';
-import { BusinessException } from '../../../common/exceptions/business.exception.js';
 
 @Injectable()
 export class AuditLogService {
@@ -30,22 +29,27 @@ export class AuditLogService {
     });
   }
 
-  async findAll(tenantId: string, query: AuditLogQueryDto, userRoles: string[] = []) {
-    const where: any = { tenantId };
+  async findAll(
+    tenantId: string,
+    query: AuditLogQueryDto,
+    userRoles: string[] = [],
+  ) {
+    const where: Prisma.AuditLogWhereInput = { tenantId };
     if (query.module) where.module = query.module;
     if (query.action) where.action = query.action;
     if (query.userId) where.userId = query.userId;
     if (query.dateFrom || query.dateTo) {
-      where.createdAt = {};
-      if (query.dateFrom) where.createdAt.gte = new Date(query.dateFrom);
-      if (query.dateTo) where.createdAt.lte = new Date(query.dateTo);
+      const createdAt: Prisma.DateTimeFilter = {};
+      if (query.dateFrom) createdAt.gte = new Date(query.dateFrom);
+      if (query.dateTo) createdAt.lte = new Date(query.dateTo);
+      where.createdAt = createdAt;
     }
 
     const prismaSelect = FieldSelector.buildPrismaSelect(
       query.fields,
       userRoles,
       AUDIT_LOG_FIELD_CONFIG,
-    );
+    ) as Prisma.AuditLogSelect;
 
     const [data, total] = await Promise.all([
       this.prisma.auditLog.findMany({
@@ -66,4 +70,3 @@ export class AuditLogService {
     );
   }
 }
-

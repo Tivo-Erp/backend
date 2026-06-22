@@ -12,6 +12,8 @@ import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { safeSortBy } from '../../../common/utils/sort.util.js';
 import { PAYMENT_FIELD_CONFIG } from '../config/fin.field-config.js';
 import { JournalBatchService } from './journal-batch.service.js';
+import { OutboxService } from '../../../infra/events/outbox.service.js';
+import { EVENT } from '../../../infra/events/event-catalog.js';
 import { CreatePaymentDto, PaymentQueryDto } from '../dto/payment.dto.js';
 
 const PAYMENT_SORTABLE = [
@@ -34,6 +36,7 @@ export class PaymentService {
     private readonly prisma: PrismaService,
     private readonly sequences: DocumentSequenceService,
     private readonly journals: JournalBatchService,
+    private readonly outbox: OutboxService,
   ) {}
 
   // ── FIN-003: Create payment with optional allocations ─────────
@@ -167,7 +170,7 @@ export class PaymentService {
   }
 
   private async assertCounterparty(
-    tx: any,
+    tx: Prisma.TransactionClient,
     tenantId: string,
     type: string,
     id: string,
@@ -332,6 +335,23 @@ export class PaymentService {
         );
       }
 
+      // INF-002: emit finance.payment.posted atomically with the posting.
+      await this.outbox.record(tx, {
+        tenantId,
+        aggregateType: 'payment',
+        aggregateId: payment.id,
+        eventType: EVENT.PAYMENT_POSTED,
+        payload: {
+          paymentNumber: payment.paymentNumber,
+          direction: payment.direction,
+          amount: amountDec.toString(),
+          counterpartyType: payment.counterpartyType,
+          counterpartyId: payment.counterpartyId,
+          journalBatchId: journal.id,
+          postedBy: userId,
+        },
+      });
+
       return tx.payment.update({
         where: { id },
         data: { journalBatchId: journal.id },
@@ -343,7 +363,14 @@ export class PaymentService {
   /** Guarded decrement that never drives creditUsed below zero. */
   private async decrementCreditUsed(
     delegate: {
-      updateMany: (args: any) => Promise<{ count: number }>;
+      updateMany: (args: {
+        where: {
+          id: string;
+          tenantId: string;
+          creditUsed?: { gte: number };
+        };
+        data: { creditUsed: number | { decrement: number } };
+      }) => Promise<{ count: number }>;
     },
     tenantId: string,
     counterpartyId: string,
@@ -380,11 +407,14 @@ export class PaymentService {
     } = query;
     const sortBy = safeSortBy(query.sortBy, PAYMENT_SORTABLE, 'paymentDate');
 
-    const where: any = {
+    const where: Prisma.PaymentWhereInput = {
       tenantId,
       ...(direction && { direction }),
       ...(counterpartyId && { counterpartyId }),
       ...(status && { status }),
+    };
+    const orderBy: Prisma.PaymentOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
     };
 
     const [data, total] = await Promise.all([
@@ -393,7 +423,7 @@ export class PaymentService {
         select,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
       }),
       this.prisma.payment.count({ where }),
     ]);

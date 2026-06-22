@@ -4,12 +4,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { LeaveBalance, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { safeSortBy } from '../../../common/utils/sort.util.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { NotificationService } from '../../ntf/services/notification.service.js';
+import { OutboxService } from '../../../infra/events/outbox.service.js';
+import { EVENT } from '../../../infra/events/event-catalog.js';
 import { LEAVE_REQUEST_FIELD_CONFIG } from '../config/leave.field-config.js';
 import {
   CreateLeaveRequestDto,
@@ -26,6 +28,7 @@ export class LeaveService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationService,
+    private readonly outbox: OutboxService,
   ) {}
 
   // ── Leave types ───────────────────────────────────────────────
@@ -44,7 +47,10 @@ export class LeaveService {
         },
       });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
         throw new ConflictException('HRM_LEAVE_TYPE_CODE_EXISTS');
       }
       throw e;
@@ -63,7 +69,8 @@ export class LeaveService {
   async createRequest(tenantId: string, dto: CreateLeaveRequestDto) {
     const start = new Date(dto.startDate);
     const end = new Date(dto.endDate);
-    if (end < start) throw new BadRequestException('HRM_LEAVE_END_BEFORE_START');
+    if (end < start)
+      throw new BadRequestException('HRM_LEAVE_END_BEFORE_START');
 
     const halfDay = dto.halfDay ?? 'full_day';
     if (halfDay !== 'full_day' && !this.isSameDay(start, end)) {
@@ -133,100 +140,160 @@ export class LeaveService {
 
   // ── Approve / reject ──────────────────────────────────────────
 
-  async approve(tenantId: string, id: string, approverId: string, _dto: LeaveActionDto) {
-    const { request, notifyUserId } = await this.prisma.$transaction(async (tx) => {
-      const req = await tx.leaveRequest.findFirst({
-        where: { id, tenantId },
-      });
-      if (!req) throw new NotFoundException('HRM_LEAVE_REQUEST_NOT_FOUND');
-      if (req.status !== 'pending')
-        throw new ConflictException('HRM_LEAVE_NOT_PENDING');
+  async approve(
+    tenantId: string,
+    id: string,
+    approverId: string,
+    _dto: LeaveActionDto,
+  ) {
+    void _dto;
+    const { request, notifyUserId } = await this.prisma.$transaction(
+      async (tx) => {
+        const req = await tx.leaveRequest.findFirst({
+          where: { id, tenantId },
+        });
+        if (!req) throw new NotFoundException('HRM_LEAVE_REQUEST_NOT_FOUND');
+        if (req.status !== 'pending')
+          throw new ConflictException('HRM_LEAVE_NOT_PENDING');
 
-      const year = req.startDate.getUTCFullYear();
-      const balance = await tx.leaveBalance.findFirst({
-        where: { tenantId, employeeId: req.employeeId, leaveTypeId: req.leaveTypeId, year },
-      });
-      if (!balance) throw new ConflictException('HRM_LEAVE_BALANCE_MISSING');
+        const year = req.startDate.getUTCFullYear();
+        const balance = await tx.leaveBalance.findFirst({
+          where: {
+            tenantId,
+            employeeId: req.employeeId,
+            leaveTypeId: req.leaveTypeId,
+            year,
+          },
+        });
+        if (!balance) throw new ConflictException('HRM_LEAVE_BALANCE_MISSING');
 
-      // Re-check availability at approval time (other requests may have used it).
-      const available = dec(balance.entitlement)
-        .add(dec(balance.carryOver))
-        .sub(dec(balance.used));
-      if (available.lt(dec(req.totalDays))) {
-        throw new ConflictException('HRM_LEAVE_INSUFFICIENT_BALANCE');
-      }
+        // Re-check availability at approval time (other requests may have used it).
+        const available = dec(balance.entitlement)
+          .add(dec(balance.carryOver))
+          .sub(dec(balance.used));
+        if (available.lt(dec(req.totalDays))) {
+          throw new ConflictException('HRM_LEAVE_INSUFFICIENT_BALANCE');
+        }
 
-      // Race-safe claim: only one approver flips pending → approved.
-      const claimed = await tx.leaveRequest.updateMany({
-        where: { id, tenantId, status: 'pending' },
-        data: { status: 'approved', approvedBy: approverId, approvedAt: new Date() },
-      });
-      if (claimed.count === 0)
-        throw new ConflictException('HRM_LEAVE_NOT_PENDING');
+        // Race-safe claim: only one approver flips pending → approved.
+        const claimed = await tx.leaveRequest.updateMany({
+          where: { id, tenantId, status: 'pending' },
+          data: {
+            status: 'approved',
+            approvedBy: approverId,
+            approvedAt: new Date(),
+          },
+        });
+        if (claimed.count === 0)
+          throw new ConflictException('HRM_LEAVE_NOT_PENDING');
 
-      // Guarded deduction: the in-memory availability check above is advisory
-      // only — a concurrent approval of ANOTHER request for the same balance
-      // could overdraw it. The bound is re-evaluated inside the UPDATE.
-      const deducted = await tx.$executeRaw`
+        // Guarded deduction: the in-memory availability check above is advisory
+        // only — a concurrent approval of ANOTHER request for the same balance
+        // could overdraw it. The bound is re-evaluated inside the UPDATE.
+        const deducted = await tx.$executeRaw`
         UPDATE "leave_balances"
         SET "used" = "used" + ${dec(req.totalDays)}
         WHERE "id" = ${balance.id}::uuid
           AND "used" + ${dec(req.totalDays)} <= "entitlement" + "carryOver"
       `;
-      if (deducted === 0) {
-        throw new ConflictException('HRM_LEAVE_INSUFFICIENT_BALANCE');
-      }
+        if (deducted === 0) {
+          throw new ConflictException('HRM_LEAVE_INSUFFICIENT_BALANCE');
+        }
 
-      const emp = await tx.employee.findFirst({
-        where: { id: req.employeeId, tenantId },
-        select: { userId: true },
-      });
-      return {
-        request: await tx.leaveRequest.findFirst({ where: { id, tenantId } }),
-        notifyUserId: emp?.userId ?? null,
-      };
-    });
+        const emp = await tx.employee.findFirst({
+          where: { id: req.employeeId, tenantId },
+          select: { userId: true },
+        });
+
+        // INF-002: emit hrm.leave.approved atomically with the approval.
+        await this.outbox.record(tx, {
+          tenantId,
+          aggregateType: 'leave_request',
+          aggregateId: req.id,
+          eventType: EVENT.LEAVE_APPROVED,
+          payload: {
+            employeeId: req.employeeId,
+            leaveTypeId: req.leaveTypeId,
+            startDate: req.startDate,
+            endDate: req.endDate,
+            totalDays: req.totalDays.toString(),
+            approvedBy: approverId,
+          },
+        });
+
+        return {
+          request: await tx.leaveRequest.findFirst({ where: { id, tenantId } }),
+          notifyUserId: emp?.userId ?? null,
+        };
+      },
+    );
 
     // Notify only after the transaction committed — no phantom events.
-    if (notifyUserId) await this.notifyUser(tenantId, notifyUserId, id, 'approved');
+    if (notifyUserId)
+      await this.notifyUser(tenantId, notifyUserId, id, 'approved');
     return request;
   }
 
-  async reject(tenantId: string, id: string, approverId: string, _dto: LeaveActionDto) {
-    const { request, notifyUserId } = await this.prisma.$transaction(async (tx) => {
-      const req = await tx.leaveRequest.findFirst({ where: { id, tenantId } });
-      if (!req) throw new NotFoundException('HRM_LEAVE_REQUEST_NOT_FOUND');
-      if (req.status !== 'pending')
-        throw new ConflictException('HRM_LEAVE_NOT_PENDING');
+  async reject(
+    tenantId: string,
+    id: string,
+    approverId: string,
+    _dto: LeaveActionDto,
+  ) {
+    void _dto;
+    const { request, notifyUserId } = await this.prisma.$transaction(
+      async (tx) => {
+        const req = await tx.leaveRequest.findFirst({
+          where: { id, tenantId },
+        });
+        if (!req) throw new NotFoundException('HRM_LEAVE_REQUEST_NOT_FOUND');
+        if (req.status !== 'pending')
+          throw new ConflictException('HRM_LEAVE_NOT_PENDING');
 
-      const claimed = await tx.leaveRequest.updateMany({
-        where: { id, tenantId, status: 'pending' },
-        data: { status: 'rejected', approvedBy: approverId, approvedAt: new Date() },
-      });
-      if (claimed.count === 0)
-        throw new ConflictException('HRM_LEAVE_NOT_PENDING');
+        const claimed = await tx.leaveRequest.updateMany({
+          where: { id, tenantId, status: 'pending' },
+          data: {
+            status: 'rejected',
+            approvedBy: approverId,
+            approvedAt: new Date(),
+          },
+        });
+        if (claimed.count === 0)
+          throw new ConflictException('HRM_LEAVE_NOT_PENDING');
 
-      const emp = await tx.employee.findFirst({
-        where: { id: req.employeeId, tenantId },
-        select: { userId: true },
-      });
-      return {
-        request: await tx.leaveRequest.findFirst({ where: { id, tenantId } }),
-        notifyUserId: emp?.userId ?? null,
-      };
-    });
+        const emp = await tx.employee.findFirst({
+          where: { id: req.employeeId, tenantId },
+          select: { userId: true },
+        });
+        return {
+          request: await tx.leaveRequest.findFirst({ where: { id, tenantId } }),
+          notifyUserId: emp?.userId ?? null,
+        };
+      },
+    );
 
-    if (notifyUserId) await this.notifyUser(tenantId, notifyUserId, id, 'rejected');
+    if (notifyUserId)
+      await this.notifyUser(tenantId, notifyUserId, id, 'rejected');
     return request;
   }
 
-  async findRequests(tenantId: string, query: LeaveRequestQueryDto, userRoles: string[]) {
+  async findRequests(
+    tenantId: string,
+    query: LeaveRequestQueryDto,
+    userRoles: string[],
+  ) {
     const select = FieldSelector.buildPrismaSelect(
       query.fields,
       userRoles,
       LEAVE_REQUEST_FIELD_CONFIG,
     );
-    const { page = 1, limit = 20, sortOrder = 'desc', employeeId, status } = query;
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      employeeId,
+      status,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, REQ_SORTABLE);
 
     const where: Prisma.LeaveRequestWhereInput = {
@@ -266,7 +333,11 @@ export class LeaveService {
     const cursor = new Date(
       Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
     );
-    const last = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+    const last = Date.UTC(
+      end.getUTCFullYear(),
+      end.getUTCMonth(),
+      end.getUTCDate(),
+    );
     while (cursor.getTime() <= last) {
       const dow = cursor.getUTCDay();
       if (dow !== 0 && dow !== 6) count += 1;
@@ -276,12 +347,12 @@ export class LeaveService {
   }
 
   private async ensureBalance(
-    tx: any,
+    tx: Prisma.TransactionClient,
     tenantId: string,
     employeeId: string,
     leaveType: { id: string; defaultDays: number },
     year: number,
-  ) {
+  ): Promise<LeaveBalance> {
     const existing = await tx.leaveBalance.findFirst({
       where: { tenantId, employeeId, leaveTypeId: leaveType.id, year },
     });

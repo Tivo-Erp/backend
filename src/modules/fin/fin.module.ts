@@ -35,6 +35,11 @@ import { FinancialReportService } from './services/financial-report.service.js';
     FixedAssetService,
     FinancialReportService,
   ],
-  exports: [ChartOfAccountService, FiscalPeriodService, JournalBatchService],
+  exports: [
+    ChartOfAccountService,
+    FiscalPeriodService,
+    JournalBatchService,
+    FixedAssetService,
+  ],
 })
 export class FinModule {}

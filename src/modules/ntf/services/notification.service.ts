@@ -2,9 +2,13 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
+import { EmailService } from '../../../infra/email/email.service.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { PaginatedResponseDto } from '../../../common/dto/pagination.dto.js';
 import { NOTIFICATION_FIELD_CONFIG } from '../config/notification.field-config.js';
@@ -16,15 +20,28 @@ import {
 } from '../dto/notification.dto.js';
 
 /** Minimal Prisma surface accepted by `create` (PrismaService or a tx client). */
-type PrismaLike = Pick<PrismaService, 'notification' | 'notificationPreference'>;
+type PrismaLike = Pick<
+  PrismaService,
+  'notification' | 'notificationPreference'
+>;
 
 @Injectable()
 export class NotificationService {
+  private readonly logger = new Logger(NotificationService.name);
+  private readonly appBaseUrl: string;
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => NotificationGateway))
     private readonly gateway: NotificationGateway,
-  ) {}
+    @Optional() private readonly email: EmailService | null,
+    config: ConfigService,
+  ) {
+    this.appBaseUrl = config.get<string>(
+      'app.appBaseUrl',
+      'http://localhost:3000',
+    );
+  }
 
   /**
    * Persist a notification and push it over the websocket. Respects the user's
@@ -43,7 +60,7 @@ export class NotificationService {
 
     const pref = await db.notificationPreference.findFirst({
       where: { tenantId, userId: dto.userId, category: dto.category },
-      select: { inAppEnabled: true },
+      select: { inAppEnabled: true, emailEnabled: true },
     });
     if (pref && !pref.inAppEnabled) return null;
 
@@ -72,7 +89,48 @@ export class NotificationService {
       /* ignore transport errors */
     }
 
+    // Best-effort email mirror when the user opted in (emailEnabled defaults
+    // to false). Fire-and-forget: queue/email failures never abort the write.
+    if (pref?.emailEnabled) {
+      void this.sendEmailCopy(tenantId, dto).catch((err) =>
+        this.logger.warn(
+          `notification email skipped (user=${dto.userId}): ${(err as Error).message}`,
+        ),
+      );
+    }
+
     return notification;
+  }
+
+  /** Enqueue an email copy of a notification via the email queue (INF-005). */
+  private async sendEmailCopy(tenantId: string, dto: CreateNotificationDto) {
+    if (!this.email) {
+      this.logger.warn('EmailService unavailable — notification email skipped');
+      return;
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { id: dto.userId, tenantId, deletedAt: null },
+      select: { email: true },
+    });
+    if (!user?.email) return;
+
+    // actionUrl is stored as an app path/URL; resolve relative paths against
+    // the configured base URL (the template layer re-validates the result).
+    const url = dto.actionUrl
+      ? dto.actionUrl.startsWith('/')
+        ? `${this.appBaseUrl}${dto.actionUrl}`
+        : dto.actionUrl
+      : undefined;
+
+    await this.email.enqueue({
+      to: user.email,
+      template: 'approval',
+      data: {
+        subject: dto.title,
+        message: dto.body ?? dto.title,
+        ...(url && { url }),
+      },
+    });
   }
 
   async findMine(
@@ -162,8 +220,12 @@ export class NotificationService {
         },
       },
       update: {
-        ...(dto.inAppEnabled !== undefined && { inAppEnabled: dto.inAppEnabled }),
-        ...(dto.emailEnabled !== undefined && { emailEnabled: dto.emailEnabled }),
+        ...(dto.inAppEnabled !== undefined && {
+          inAppEnabled: dto.inAppEnabled,
+        }),
+        ...(dto.emailEnabled !== undefined && {
+          emailEnabled: dto.emailEnabled,
+        }),
       },
       create: {
         tenantId,

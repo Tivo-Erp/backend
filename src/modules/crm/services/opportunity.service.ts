@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
@@ -15,7 +12,13 @@ import {
 } from '../dto/crm.dto.js';
 
 const dec = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n);
-const OPP_SORTABLE = ['createdAt', 'updatedAt', 'name', 'expectedRevenue', 'status'] as const;
+const OPP_SORTABLE = [
+  'createdAt',
+  'updatedAt',
+  'name',
+  'expectedRevenue',
+  'status',
+] as const;
 
 @Injectable()
 export class OpportunityService {
@@ -32,7 +35,8 @@ export class OpportunityService {
         stageId: dto.stageId,
         customerId: dto.customerId ?? null,
         leadId: dto.leadId ?? null,
-        expectedRevenue: dto.expectedRevenue != null ? dec(dto.expectedRevenue) : dec(0),
+        expectedRevenue:
+          dto.expectedRevenue != null ? dec(dto.expectedRevenue) : dec(0),
         currency: dto.currency ?? 'VND',
         assignedTo: dto.assignedTo ?? null,
         status: 'open',
@@ -74,9 +78,24 @@ export class OpportunityService {
     });
   }
 
-  async findAll(tenantId: string, query: OpportunityQueryDto, userRoles: string[]) {
-    const select = FieldSelector.buildPrismaSelect(query.fields, userRoles, OPPORTUNITY_FIELD_CONFIG);
-    const { page = 1, limit = 20, sortOrder = 'desc', stageId, customerId, status } = query;
+  async findAll(
+    tenantId: string,
+    query: OpportunityQueryDto,
+    userRoles: string[],
+  ) {
+    const select = FieldSelector.buildPrismaSelect(
+      query.fields,
+      userRoles,
+      OPPORTUNITY_FIELD_CONFIG,
+    );
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      stageId,
+      customerId,
+      status,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, OPP_SORTABLE);
 
     const where: Prisma.OpportunityWhereInput = {

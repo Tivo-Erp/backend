@@ -11,7 +11,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUrl,
   IsUUID,
   MaxLength,
   Min,
@@ -185,7 +184,7 @@ export class ConfirmPackedDto {
 
 export class DispatchDeliveryDto {
   @ApiProperty({ enum: DELIVERY_METHODS })
-  @IsIn(DELIVERY_METHODS as unknown as string[])
+  @IsIn(DELIVERY_METHODS)
   deliveryMethod: string;
 
   @ApiPropertyOptional({ maxLength: 200 })
@@ -222,21 +221,28 @@ export class DispatchDeliveryDto {
 
 export class SubmitPODDto {
   @ApiProperty({ enum: POD_TYPES })
-  @IsIn(POD_TYPES as unknown as string[])
+  @IsIn(POD_TYPES)
   podType: string;
 
-  @ApiPropertyOptional({ description: 'Base64 signature image (max ~375 KB raw)' })
+  @ApiPropertyOptional({
+    description: 'Base64 signature image (max ~375 KB raw)',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500_000)
   signatureDataUrl?: string;
 
-  @ApiPropertyOptional({ type: [String], description: 'Photo URLs (MinIO deferred)', maxItems: 20 })
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'POD photo storage keys ({tenantId}/del/{dnId}/...) issued via POST /api/v1/files/presign',
+    maxItems: 20,
+  })
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
-  @IsUrl({}, { each: true })
-  @MaxLength(2048, { each: true })
+  @IsString({ each: true })
+  @MaxLength(1024, { each: true })
   photoUrls?: string[];
 
   @ApiPropertyOptional({ maxLength: 200 })
@@ -261,7 +267,7 @@ export class SubmitPODDto {
 
 export class FailDeliveryDto {
   @ApiProperty({ enum: FAILURE_REASONS })
-  @IsIn(FAILURE_REASONS as unknown as string[])
+  @IsIn(FAILURE_REASONS)
   failureReason: string;
 
   @ApiPropertyOptional({ maxLength: 1000 })
@@ -283,7 +289,7 @@ export class FailDeliveryDto {
 
 export class ReturnDeliveryDto {
   @ApiProperty({ enum: RETURN_REASONS })
-  @IsIn(RETURN_REASONS as unknown as string[])
+  @IsIn(RETURN_REASONS)
   returnReason: string;
 
   @ApiPropertyOptional({ maxLength: 1000 })
@@ -302,7 +308,7 @@ export class ReturnDeliveryDto {
 export class DeliveryNoteQueryDto extends PaginatedFieldsQueryDto {
   @ApiPropertyOptional({ enum: DN_STATUSES })
   @IsOptional()
-  @IsIn(DN_STATUSES as unknown as string[])
+  @IsIn(DN_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })

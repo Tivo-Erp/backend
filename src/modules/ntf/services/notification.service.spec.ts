@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { NotificationService } from './notification.service.js';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { NotificationGateway } from '../gateways/notification.gateway.js';
@@ -26,6 +27,10 @@ describe('NotificationService', () => {
         NotificationService,
         { provide: PrismaService, useFactory: makePrisma },
         { provide: NotificationGateway, useValue: gateway },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
       ],
     }).compile();
     service = module.get(NotificationService);
@@ -39,17 +44,26 @@ describe('NotificationService', () => {
       prisma.notificationPreference.findFirst.mockResolvedValue(null);
       prisma.notification.create.mockResolvedValue({ id: 'n1', userId: 'u1' });
       const res = await service.create(tenantId, {
-        userId: 'u1', title: 'Hi', category: 'info',
-      } as any);
+        userId: 'u1',
+        title: 'Hi',
+        category: 'info',
+      });
       expect(res).toEqual({ id: 'n1', userId: 'u1' });
-      expect(gateway.emitNew).toHaveBeenCalledWith(tenantId, 'u1', { id: 'n1', userId: 'u1' });
+      expect(gateway.emitNew).toHaveBeenCalledWith(tenantId, 'u1', {
+        id: 'n1',
+        userId: 'u1',
+      });
     });
 
     it('suppresses delivery when the user disabled the category in-app', async () => {
-      prisma.notificationPreference.findFirst.mockResolvedValue({ inAppEnabled: false });
+      prisma.notificationPreference.findFirst.mockResolvedValue({
+        inAppEnabled: false,
+      });
       const res = await service.create(tenantId, {
-        userId: 'u1', title: 'Hi', category: 'info',
-      } as any);
+        userId: 'u1',
+        title: 'Hi',
+        category: 'info',
+      });
       expect(res).toBeNull();
       expect(prisma.notification.create).not.toHaveBeenCalled();
       expect(gateway.emitNew).not.toHaveBeenCalled();
@@ -79,9 +93,9 @@ describe('NotificationService', () => {
     it('404s when the notification does not belong to the user', async () => {
       prisma.notification.updateMany.mockResolvedValue({ count: 0 });
       prisma.notification.findFirst.mockResolvedValue(null);
-      await expect(service.markRead(tenantId, 'u1', 'n1')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.markRead(tenantId, 'u1', 'n1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

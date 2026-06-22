@@ -25,7 +25,9 @@ const makePrisma = () => ({
 describe('WorkOrderService', () => {
   let service: WorkOrderService;
   let prisma: ReturnType<typeof makePrisma>;
-  const sequences = { getNextNumber: jest.fn().mockResolvedValue('WO-2026-00001') };
+  const sequences = {
+    getNextNumber: jest.fn().mockResolvedValue('WO-2026-00001'),
+  };
   const tenantId = 't1';
   const userId = 'u1';
 
@@ -67,23 +69,33 @@ describe('WorkOrderService', () => {
     it('rejects a BOM that belongs to a different item', async () => {
       const tx = {
         item: { findFirst: jest.fn().mockResolvedValue({ id: 'i1' }) },
-        bOM: { findFirst: jest.fn().mockResolvedValue({ id: 'b1', itemId: 'OTHER', isActive: true }) },
+        bOM: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'b1', itemId: 'OTHER', isActive: true }),
+        },
         warehouse: { findFirst: jest.fn() },
         workOrder: { create: jest.fn() },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
-      await expect(service.create(tenantId, userId, dto)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.create(tenantId, userId, dto),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('creates a draft WO with server-assigned number', async () => {
       const tx = {
         item: { findFirst: jest.fn().mockResolvedValue({ id: 'i1' }) },
-        bOM: { findFirst: jest.fn().mockResolvedValue({ id: 'b1', itemId: 'i1', isActive: true }) },
+        bOM: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'b1', itemId: 'i1', isActive: true }),
+        },
         warehouse: { findFirst: jest.fn().mockResolvedValue({ id: 'w1' }) },
         workOrder: {
-          create: jest.fn().mockImplementation((a: any) => ({ id: 'wo1', ...a.data })),
+          create: jest
+            .fn()
+            .mockImplementation((a: any) => ({ id: 'wo1', ...a.data })),
         },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
@@ -96,7 +108,13 @@ describe('WorkOrderService', () => {
   describe('reportConsumption', () => {
     it('rejects when WO is not in an executable state', async () => {
       const tx = {
-        workOrder: { findFirst: jest.fn().mockResolvedValue({ id: 'wo1', status: 'draft', warehouseId: 'w1' }) },
+        workOrder: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'wo1',
+            status: 'draft',
+            warehouseId: 'w1',
+          }),
+        },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       await expect(
@@ -109,12 +127,22 @@ describe('WorkOrderService', () => {
     it('rejects when stock is insufficient', async () => {
       const tx = {
         workOrder: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'wo1', status: 'released', warehouseId: 'w1' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'wo1',
+            status: 'released',
+            warehouseId: 'w1',
+          }),
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         item: { findFirst: jest.fn().mockResolvedValue({ id: 'i2' }) },
         inventoryBalance: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'bal1', quantityOnHand: '3', quantityReserved: '0', costPerUnit: '10', uom: 'KG' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'bal1',
+            quantityOnHand: '3',
+            quantityReserved: '0',
+            costPerUnit: '10',
+            uom: 'KG',
+          }),
           updateMany: jest.fn(),
         },
         stockMovement: { create: jest.fn() },
@@ -130,7 +158,11 @@ describe('WorkOrderService', () => {
     it('rejects when the WO claim loses to a concurrent cancel', async () => {
       const tx = {
         workOrder: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'wo1', status: 'released', warehouseId: 'w1' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'wo1',
+            status: 'released',
+            warehouseId: 'w1',
+          }),
           updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
       };
@@ -145,12 +177,22 @@ describe('WorkOrderService', () => {
     it('rejects when the guarded balance decrement loses a concurrent race', async () => {
       const tx = {
         workOrder: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'wo1', status: 'in_progress', warehouseId: 'w1' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'wo1',
+            status: 'in_progress',
+            warehouseId: 'w1',
+          }),
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         item: { findFirst: jest.fn().mockResolvedValue({ id: 'i2' }) },
         inventoryBalance: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'bal1', quantityOnHand: '100', quantityReserved: '0', costPerUnit: '10', uom: 'KG' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'bal1',
+            quantityOnHand: '100',
+            quantityReserved: '0',
+            costPerUnit: '10',
+            uom: 'KG',
+          }),
           updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
         stockMovement: { create: jest.fn() },
@@ -167,7 +209,11 @@ describe('WorkOrderService', () => {
     it('rejects a bin outside the WO warehouse', async () => {
       const tx = {
         workOrder: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'wo1', status: 'in_progress', warehouseId: 'w1' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'wo1',
+            status: 'in_progress',
+            warehouseId: 'w1',
+          }),
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         item: { findFirst: jest.fn().mockResolvedValue({ id: 'i2' }) },
@@ -191,13 +237,23 @@ describe('WorkOrderService', () => {
         workOrder: {
           findFirst: jest
             .fn()
-            .mockResolvedValueOnce({ id: 'wo1', status: 'released', warehouseId: 'w1' })
+            .mockResolvedValueOnce({
+              id: 'wo1',
+              status: 'released',
+              warehouseId: 'w1',
+            })
             .mockResolvedValueOnce({ id: 'wo1', status: 'in_progress' }),
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         item: { findFirst: jest.fn().mockResolvedValue({ id: 'i2' }) },
         inventoryBalance: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'bal1', quantityOnHand: '100', quantityReserved: '0', costPerUnit: '10', uom: 'KG' }),
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'bal1',
+            quantityOnHand: '100',
+            quantityReserved: '0',
+            costPerUnit: '10',
+            uom: 'KG',
+          }),
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
         stockMovement: { create: jest.fn() },
@@ -205,7 +261,7 @@ describe('WorkOrderService', () => {
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       await service.reportConsumption(tenantId, userId, 'wo1', {
         lines: [{ itemId: 'i2', quantity: 5 }],
-      } as any);
+      });
       expect(tx.inventoryBalance.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -216,10 +272,14 @@ describe('WorkOrderService', () => {
         }),
       );
       expect(tx.workOrder.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: 'in_progress' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'in_progress' }),
+        }),
       );
       expect(tx.stockMovement.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ uom: 'KG', direction: 'OUT' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ uom: 'KG', direction: 'OUT' }),
+        }),
       );
     });
   });
@@ -238,13 +298,23 @@ describe('WorkOrderService', () => {
 
     it('rejects output that would exceed planned qty', async () => {
       const tx = {
-        workOrder: { findFirst: jest.fn().mockResolvedValue({ ...baseWo, producedQty: '98' }) },
-        inventoryBalance: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+        workOrder: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ ...baseWo, producedQty: '98' }),
+        },
+        inventoryBalance: {
+          findFirst: jest.fn(),
+          create: jest.fn(),
+          update: jest.fn(),
+        },
         stockMovement: { create: jest.fn() },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       await expect(
-        service.reportOutput(tenantId, userId, 'wo1', { producedQty: 5 } as any),
+        service.reportOutput(tenantId, userId, 'wo1', {
+          producedQty: 5,
+        } as any),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -254,13 +324,23 @@ describe('WorkOrderService', () => {
           findFirst: jest.fn().mockResolvedValue({ ...baseWo }),
           updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
-        item: { findFirst: jest.fn().mockResolvedValue({ id: 'i1', isBatchTracked: false }) },
-        inventoryBalance: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+        item: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'i1', isBatchTracked: false }),
+        },
+        inventoryBalance: {
+          findFirst: jest.fn(),
+          create: jest.fn(),
+          update: jest.fn(),
+        },
         stockMovement: { create: jest.fn() },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       await expect(
-        service.reportOutput(tenantId, userId, 'wo1', { producedQty: 10 } as any),
+        service.reportOutput(tenantId, userId, 'wo1', {
+          producedQty: 10,
+        } as any),
       ).rejects.toBeInstanceOf(ConflictException);
       expect(tx.workOrder.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -277,11 +357,17 @@ describe('WorkOrderService', () => {
     it('requires a lot for batch-tracked finished goods', async () => {
       const tx = {
         workOrder: { findFirst: jest.fn().mockResolvedValue({ ...baseWo }) },
-        item: { findFirst: jest.fn().mockResolvedValue({ id: 'i1', isBatchTracked: true }) },
+        item: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'i1', isBatchTracked: true }),
+        },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
       await expect(
-        service.reportOutput(tenantId, userId, 'wo1', { producedQty: 10 } as any),
+        service.reportOutput(tenantId, userId, 'wo1', {
+          producedQty: 10,
+        } as any),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -294,25 +380,42 @@ describe('WorkOrderService', () => {
             .mockResolvedValueOnce({ id: 'wo1', status: 'completed' }),
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
-        item: { findFirst: jest.fn().mockResolvedValue({ id: 'i1', isBatchTracked: false }) },
-        inventoryBalance: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
+        item: {
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'i1', isBatchTracked: false }),
+        },
+        inventoryBalance: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          create: jest.fn(),
+          update: jest.fn(),
+        },
         stockMovement: { create: jest.fn() },
       };
       prisma.$transaction.mockImplementation((fn: any) => fn(tx));
-      await service.reportOutput(tenantId, userId, 'wo1', { producedQty: 10 } as any);
+      await service.reportOutput(tenantId, userId, 'wo1', {
+        producedQty: 10,
+      });
       expect(tx.workOrder.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: 'completed' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'completed' }),
+        }),
       );
       expect(tx.inventoryBalance.create).toHaveBeenCalled();
       expect(tx.stockMovement.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ direction: 'IN' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ direction: 'IN' }),
+        }),
       );
     });
   });
 
   describe('remove', () => {
     it('soft deletes a draft WO', async () => {
-      prisma.workOrder.findFirst.mockResolvedValue({ id: 'wo1', status: 'draft' });
+      prisma.workOrder.findFirst.mockResolvedValue({
+        id: 'wo1',
+        status: 'draft',
+      });
       prisma.workOrder.updateMany.mockResolvedValue({ count: 1 });
       await service.remove(tenantId, 'wo1');
       expect(prisma.workOrder.updateMany).toHaveBeenCalledWith(
@@ -326,7 +429,10 @@ describe('WorkOrderService', () => {
 
   describe('transitions', () => {
     it('release requires planned status (guarded updateMany)', async () => {
-      prisma.workOrder.findFirst.mockResolvedValue({ id: 'wo1', status: 'draft' });
+      prisma.workOrder.findFirst.mockResolvedValue({
+        id: 'wo1',
+        status: 'draft',
+      });
       prisma.workOrder.updateMany.mockResolvedValue({ count: 0 });
       await expect(service.release(tenantId, 'wo1')).rejects.toBeInstanceOf(
         ConflictException,

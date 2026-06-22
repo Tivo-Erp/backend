@@ -64,7 +64,8 @@ export class FixedAssetController {
   @RequirePermissions('fin:asset:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Run monthly depreciation for all in-use assets (posts one journal)',
+    summary:
+      'Run monthly depreciation for all in-use assets (posts one journal)',
   })
   @ApiResponse({ status: 409, description: 'Fiscal period not open' })
   runDepreciation(
@@ -126,7 +127,9 @@ export class FixedAssetController {
   @Post(':id/activate')
   @RequirePermissions('fin:asset:manage')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Activate asset (draft → in_use, starts depreciation)' })
+  @ApiOperation({
+    summary: 'Activate asset (draft → in_use, starts depreciation)',
+  })
   @ApiResponse({ status: 409, description: 'Asset not in draft' })
   activate(
     @CurrentTenant() tenantId: string,

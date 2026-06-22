@@ -53,8 +53,12 @@ describe('TenantService', () => {
 
     // Default happy-path mocks
     mockTx.tenant.findUnique.mockResolvedValue(null); // slug not taken
-    mockTx.user.findFirst.mockResolvedValue(null);    // email not taken
-    mockTx.tenant.create.mockResolvedValue({ id: 'tenant-1', slug: 'acme-corp', status: 'active' });
+    mockTx.user.findFirst.mockResolvedValue(null); // email not taken
+    mockTx.tenant.create.mockResolvedValue({
+      id: 'tenant-1',
+      slug: 'acme-corp',
+      status: 'active',
+    });
     mockTx.user.create.mockResolvedValue({ id: 'user-1' });
     mockTx.role.create
       .mockResolvedValueOnce({ id: 'role-owner' })
@@ -62,7 +66,10 @@ describe('TenantService', () => {
     mockTx.permission.findMany.mockResolvedValue([{ id: 'perm-1' }]);
     mockTx.rolePermission.createMany.mockResolvedValue({});
     mockTx.userRole.create.mockResolvedValue({});
-    mockTx.plan.findUnique.mockResolvedValue({ id: 'plan-starter', code: 'starter' });
+    mockTx.plan.findUnique.mockResolvedValue({
+      id: 'plan-starter',
+      code: 'starter',
+    });
     mockTx.subscription.create.mockResolvedValue({});
     mockTx.documentSequence.createMany.mockResolvedValue({});
   });
@@ -83,11 +90,17 @@ describe('TenantService', () => {
       expect(mockTx.rolePermission.createMany).toHaveBeenCalledWith({
         data: [{ roleId: 'role-owner', permissionId: 'perm-1' }],
       });
-      // 14 document sequences (Batch 4 added 'QC')
+      // 18 document sequences (Batch 7 added 'SHP')
       expect(mockTx.documentSequence.createMany).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.arrayContaining([expect.objectContaining({ tenantId: 'tenant-1' })]) }),
+        expect.objectContaining({
+          data: expect.arrayContaining([
+            expect.objectContaining({ tenantId: 'tenant-1' }),
+          ]),
+        }),
       );
-      expect(mockTx.documentSequence.createMany.mock.calls[0][0].data).toHaveLength(17);
+      expect(
+        mockTx.documentSequence.createMany.mock.calls[0][0].data,
+      ).toHaveLength(18);
     });
 
     it('duplicate slug — throws ORG_TENANT_SLUG_TAKEN (409)', async () => {

@@ -73,7 +73,7 @@ export class GoodsReceiptService {
       }
 
       const lineById = new Map(po.lines.map((l) => [l.id, l]));
-      const grnLines: any[] = [];
+      const grnLines: Prisma.GoodsReceiptLineCreateManyGrnInput[] = [];
 
       for (const line of dto.lines) {
         const poLine = lineById.get(line.poLineId);
@@ -226,7 +226,7 @@ export class GoodsReceiptService {
    * A pre-existing lot number must belong to the same item and be active.
    */
   private async resolveLot(
-    tx: any,
+    tx: Prisma.TransactionClient,
     tenantId: string,
     poLine: { itemId: string },
     line: CreateGRNLineDto,
@@ -291,10 +291,13 @@ export class GoodsReceiptService {
       warehouseId,
     } = query;
     const sortBy = safeSortBy(query.sortBy, GRN_SORTABLE_FIELDS);
-    const where: any = {
+    const where: Prisma.GoodsReceiptWhereInput = {
       tenantId,
       ...(poId && { poId }),
       ...(warehouseId && { warehouseId }),
+    };
+    const orderBy: Prisma.GoodsReceiptOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
     };
 
     const [data, total] = await Promise.all([
@@ -303,7 +306,7 @@ export class GoodsReceiptService {
         select,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
       }),
       this.prisma.goodsReceipt.count({ where }),
     ]);

@@ -108,7 +108,9 @@ export class LeadController {
 
   @Patch(':id/convert')
   @RequirePermissions('crm:opportunity:manage')
-  @ApiOperation({ summary: 'Convert a qualified lead to customer + opportunity' })
+  @ApiOperation({
+    summary: 'Convert a qualified lead to customer + opportunity',
+  })
   @ApiResponse({ status: 409, description: 'Lead not qualified' })
   convert(
     @CurrentTenant() tenantId: string,

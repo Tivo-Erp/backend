@@ -127,7 +127,9 @@ export class WorkOrderService {
       where: { id, tenantId, status: 'draft', deletedAt: null },
       data: {
         ...(dto.bomId !== undefined && { bomId: dto.bomId }),
-        ...(dto.plannedQty !== undefined && { plannedQty: dec(dto.plannedQty) }),
+        ...(dto.plannedQty !== undefined && {
+          plannedQty: dec(dto.plannedQty),
+        }),
         ...(dto.plannedStartDate !== undefined && { plannedStartDate: start }),
         ...(dto.plannedEndDate !== undefined && { plannedEndDate: end }),
         ...(dto.priority !== undefined && { priority: dto.priority }),
@@ -211,7 +213,8 @@ export class WorkOrderService {
             ? { status: 'in_progress', actualStartDate: new Date() }
             : { updatedAt: new Date() },
       });
-      if (claim.count === 0) throw new ConflictException('MFG_WO_NOT_EXECUTABLE');
+      if (claim.count === 0)
+        throw new ConflictException('MFG_WO_NOT_EXECUTABLE');
 
       for (const line of dto.lines) {
         const item = await tx.item.findFirst({
@@ -414,7 +417,8 @@ export class WorkOrderService {
       where: { id: binId, zone: { warehouseId } },
       select: { id: true },
     });
-    if (!bin) throw new BadRequestException(`WMS_BIN_NOT_IN_WAREHOUSE: ${binId}`);
+    if (!bin)
+      throw new BadRequestException(`WMS_BIN_NOT_IN_WAREHOUSE: ${binId}`);
   }
 
   /** A referenced lot must belong to this tenant + item and be active. */
@@ -440,7 +444,11 @@ export class WorkOrderService {
 
   // ── Queries ───────────────────────────────────────────────────
 
-  async findAll(tenantId: string, query: WorkOrderQueryDto, userRoles: string[]) {
+  async findAll(
+    tenantId: string,
+    query: WorkOrderQueryDto,
+    userRoles: string[],
+  ) {
     const select = FieldSelector.buildPrismaSelect(
       query.fields,
       userRoles,
@@ -479,7 +487,12 @@ export class WorkOrderService {
     return PaginatedResponseDto.create(data, total, page, limit);
   }
 
-  async findOne(tenantId: string, id: string, userRoles: string[], fields?: string) {
+  async findOne(
+    tenantId: string,
+    id: string,
+    userRoles: string[],
+    fields?: string,
+  ) {
     const select = FieldSelector.buildPrismaSelect(
       fields,
       userRoles,

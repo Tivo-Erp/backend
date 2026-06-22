@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsIn,
@@ -15,7 +14,10 @@ import {
 } from 'class-validator';
 import { PaginatedFieldsQueryDto } from '../../../common/dto/fields-query.dto.js';
 
-export const DEPRECIATION_METHODS = ['straight_line', 'declining_balance'] as const;
+export const DEPRECIATION_METHODS = [
+  'straight_line',
+  'declining_balance',
+] as const;
 
 export class CreateFixedAssetDto {
   @ApiProperty({ minLength: 1, maxLength: 100 })
@@ -30,7 +32,10 @@ export class CreateFixedAssetDto {
   @MaxLength(500)
   name: string;
 
-  @ApiProperty({ example: '2111', description: 'Asset GL account: 2111, 2112, 2113, 2114' })
+  @ApiProperty({
+    example: '2111',
+    description: 'Asset GL account: 2111, 2112, 2113, 2114',
+  })
   @IsString()
   @MaxLength(20)
   accountCode: string;
@@ -55,7 +60,7 @@ export class CreateFixedAssetDto {
   inServiceDate?: string;
 
   @ApiProperty({ enum: DEPRECIATION_METHODS })
-  @IsIn(DEPRECIATION_METHODS as unknown as string[])
+  @IsIn(DEPRECIATION_METHODS)
   depreciationMethod: string;
 
   @ApiProperty({ example: 60, minimum: 1, maximum: 480 })
@@ -64,7 +69,10 @@ export class CreateFixedAssetDto {
   @Max(480)
   usefulLifeMonths: number;
 
-  @ApiPropertyOptional({ example: '642', description: 'Depreciation expense account (627/641/642)' })
+  @ApiPropertyOptional({
+    example: '642',
+    description: 'Depreciation expense account (627/641/642)',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(20)
@@ -112,7 +120,10 @@ export class UpdateFixedAssetDto {
 }
 
 export class ActivateAssetDto {
-  @ApiPropertyOptional({ example: '2026-01-15', description: 'In-service date (default: today)' })
+  @ApiPropertyOptional({
+    example: '2026-01-15',
+    description: 'In-service date (default: today)',
+  })
   @IsOptional()
   @IsDateString()
   inServiceDate?: string;
@@ -123,7 +134,10 @@ export class DisposeAssetDto {
   @IsDateString()
   disposalDate: string;
 
-  @ApiPropertyOptional({ example: 5000000, description: 'Sale proceeds (0 = scrap)' })
+  @ApiPropertyOptional({
+    example: 5000000,
+    description: 'Sale proceeds (0 = scrap)',
+  })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)

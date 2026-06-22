@@ -17,7 +17,12 @@ import {
   SubmitResultsDto,
 } from '../dto/qc.dto.js';
 
-const INSP_SORTABLE = ['createdAt', 'updatedAt', 'inspectionNumber', 'status'] as const;
+const INSP_SORTABLE = [
+  'createdAt',
+  'updatedAt',
+  'inspectionNumber',
+  'status',
+] as const;
 const dec = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n);
 
 @Injectable()
@@ -47,7 +52,9 @@ export class QcInspectionService {
               select: { id: true },
             });
       if (!source) {
-        throw new NotFoundException(`QC_SOURCE_NOT_FOUND: ${dto.sourceType} ${dto.sourceId}`);
+        throw new NotFoundException(
+          `QC_SOURCE_NOT_FOUND: ${dto.sourceType} ${dto.sourceId}`,
+        );
       }
 
       const inspectionNumber = await this.sequences.getNextNumber(
@@ -85,7 +92,10 @@ export class QcInspectionService {
         select: { id: true, status: true, totalQty: true },
       });
       if (!inspection) throw new NotFoundException('QC_INSPECTION_NOT_FOUND');
-      if (inspection.status !== 'pending' && inspection.status !== 'in_progress') {
+      if (
+        inspection.status !== 'pending' &&
+        inspection.status !== 'in_progress'
+      ) {
         throw new ConflictException('QC_INSPECTION_ALREADY_FINALIZED');
       }
 
@@ -134,13 +144,24 @@ export class QcInspectionService {
     });
   }
 
-  async findAll(tenantId: string, query: InspectionQueryDto, userRoles: string[]) {
+  async findAll(
+    tenantId: string,
+    query: InspectionQueryDto,
+    userRoles: string[],
+  ) {
     const select = FieldSelector.buildPrismaSelect(
       query.fields,
       userRoles,
       QC_INSPECTION_FIELD_CONFIG,
     );
-    const { page = 1, limit = 20, sortOrder = 'desc', status, sourceType, itemId } = query;
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      status,
+      sourceType,
+      itemId,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, INSP_SORTABLE);
 
     const where: Prisma.QCInspectionWhereInput = {
@@ -163,7 +184,12 @@ export class QcInspectionService {
     return PaginatedResponseDto.create(data, total, page, limit);
   }
 
-  async findOne(tenantId: string, id: string, userRoles: string[], fields?: string) {
+  async findOne(
+    tenantId: string,
+    id: string,
+    userRoles: string[],
+    fields?: string,
+  ) {
     const select = FieldSelector.buildPrismaSelect(
       fields,
       userRoles,

@@ -11,6 +11,14 @@ export interface FieldConfig {
   allowedFields: Record<string, string[]>;
 }
 
+/**
+ * Prisma `select` shape produced by {@link FieldSelector}: each entry is either
+ * a scalar selection (`true`) or a one-level nested relation select.
+ */
+export type PrismaSelect = {
+  [field: string]: true | { select: Record<string, true> };
+};
+
 const MAX_NESTING_DEPTH = 2;
 
 /**
@@ -36,9 +44,13 @@ export class FieldSelector {
     queryFields: string | undefined,
     userRoles: string[],
     config: FieldConfig,
-  ): Record<string, any> {
+  ): PrismaSelect {
     const allowed = this.resolveAllowedFields(userRoles, config);
-    const requested = this.parseAndValidate(queryFields, allowed, config.defaultFields);
+    const requested = this.parseAndValidate(
+      queryFields,
+      allowed,
+      config.defaultFields,
+    );
     return this.toPrismaSelect(requested);
   }
 
@@ -111,20 +123,20 @@ export class FieldSelector {
    * Supports flat fields ('name' → { name: true }) and
    * dot-notation ('subscription.planCode' → { subscription: { select: { planCode: true } } })
    */
-  private static toPrismaSelect(
-    fields: string[],
-  ): Record<string, any> {
-    const selectObj: Record<string, any> = {};
+  private static toPrismaSelect(fields: string[]): PrismaSelect {
+    const selectObj: PrismaSelect = {};
 
     for (const field of fields) {
       if (field.includes('.')) {
         const [relation, ...rest] = field.split('.');
         const nestedField = rest.join('.');
 
-        if (!selectObj[relation]) {
-          selectObj[relation] = { select: {} };
+        let nested = selectObj[relation];
+        if (typeof nested !== 'object') {
+          nested = { select: {} };
+          selectObj[relation] = nested;
         }
-        selectObj[relation].select[nestedField] = true;
+        nested.select[nestedField] = true;
       } else {
         selectObj[field] = true;
       }

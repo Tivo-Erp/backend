@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { safeSortBy } from '../../../common/utils/sort.util.js';
 
@@ -29,7 +30,7 @@ export class SupplierRepository {
   async findAll(
     tenantId: string,
     query: SupplierQueryDto,
-    select: Record<string, any>,
+    select: Prisma.SupplierSelect,
   ) {
     const {
       page = 1,
@@ -39,7 +40,7 @@ export class SupplierRepository {
       isActive,
     } = query;
     const sortBy = safeSortBy(query.sortBy, SUPPLIER_SORTABLE_FIELDS);
-    const where: any = {
+    const where: Prisma.SupplierWhereInput = {
       tenantId,
       ...(isActive !== undefined && { isActive }),
       ...(search && {
@@ -49,6 +50,9 @@ export class SupplierRepository {
         ],
       }),
     };
+    const orderBy: Prisma.SupplierOrderByWithRelationInput = {
+      [sortBy]: sortOrder,
+    };
 
     const [data, total] = await Promise.all([
       this.prisma.supplier.findMany({
@@ -56,7 +60,7 @@ export class SupplierRepository {
         select,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy,
       }),
       this.prisma.supplier.count({ where }),
     ]);
@@ -64,7 +68,7 @@ export class SupplierRepository {
     return { data, total, page, limit };
   }
 
-  async findById(tenantId: string, id: string, select: Record<string, any>) {
+  async findById(tenantId: string, id: string, select: Prisma.SupplierSelect) {
     return this.prisma.supplier.findFirst({ where: { id, tenantId }, select });
   }
 

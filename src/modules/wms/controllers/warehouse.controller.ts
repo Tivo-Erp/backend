@@ -58,27 +58,41 @@ export class WarehouseController {
   @ApiOperation({ summary: 'Create warehouse' })
   @ApiResponse({ status: 201, description: 'Warehouse created' })
   @ApiResponse({ status: 409, description: 'Code duplicate' })
-  createWarehouse(@CurrentTenant() tenantId: string, @Body() dto: CreateWarehouseDto) {
+  createWarehouse(
+    @CurrentTenant() tenantId: string,
+    @Body() dto: CreateWarehouseDto,
+  ) {
     return this.warehouseService.createWarehouse(tenantId, dto);
   }
 
   @Get()
   @RequirePermissions('wms:warehouse:read')
   @ApiOperation({ summary: 'List all warehouses' })
-  @ApiQuery({ name: 'fields', required: false, description: FieldSelector.describeForSwagger(WAREHOUSE_FIELD_CONFIG) })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: FieldSelector.describeForSwagger(WAREHOUSE_FIELD_CONFIG),
+  })
   findAllWarehouses(
     @CurrentTenant() tenantId: string,
     @CurrentUserRoles() roles: string[],
     @Query() query: PaginatedFieldsQueryDto,
   ) {
-    return this.warehouseService.findAllWarehouses(tenantId, roles, query.fields);
+    return this.warehouseService.findAllWarehouses(
+      tenantId,
+      roles,
+      query.fields,
+    );
   }
 
   @Get(':id')
   @RequirePermissions('wms:warehouse:read')
   @ApiOperation({ summary: 'Get warehouse with zones and bins' })
   @ApiResponse({ status: 404, description: 'Warehouse not found' })
-  findWarehouse(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+  findWarehouse(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.warehouseService.findWarehouseById(tenantId, id);
   }
 
@@ -101,7 +115,10 @@ export class WarehouseController {
   @ApiOperation({ summary: 'Delete warehouse (only if no stock)' })
   @ApiResponse({ status: 204, description: 'Warehouse deleted' })
   @ApiResponse({ status: 409, description: 'Has stock — cannot delete' })
-  deleteWarehouse(@CurrentTenant() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+  deleteWarehouse(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.warehouseService.deleteWarehouse(tenantId, id);
   }
 
@@ -123,7 +140,11 @@ export class WarehouseController {
   @Get(':whId/zones')
   @RequirePermissions('wms:zone:read')
   @ApiOperation({ summary: 'List zones in warehouse' })
-  @ApiQuery({ name: 'fields', required: false, description: FieldSelector.describeForSwagger(ZONE_FIELD_CONFIG) })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: FieldSelector.describeForSwagger(ZONE_FIELD_CONFIG),
+  })
   findZones(
     @CurrentTenant() tenantId: string,
     @CurrentUserRoles() roles: string[],
@@ -179,7 +200,11 @@ export class WarehouseController {
   @Get(':whId/zones/:zoneId/bins')
   @RequirePermissions('wms:bin:read')
   @ApiOperation({ summary: 'List bins in zone' })
-  @ApiQuery({ name: 'fields', required: false, description: FieldSelector.describeForSwagger(BIN_FIELD_CONFIG) })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: FieldSelector.describeForSwagger(BIN_FIELD_CONFIG),
+  })
   findBins(
     @CurrentTenant() tenantId: string,
     @CurrentUserRoles() roles: string[],
@@ -187,7 +212,13 @@ export class WarehouseController {
     @Param('zoneId', ParseUUIDPipe) zoneId: string,
     @Query() query: PaginatedFieldsQueryDto,
   ) {
-    return this.warehouseService.findBins(tenantId, whId, zoneId, roles, query.fields);
+    return this.warehouseService.findBins(
+      tenantId,
+      whId,
+      zoneId,
+      roles,
+      query.fields,
+    );
   }
 
   @Patch(':whId/zones/:zoneId/bins/:binId')

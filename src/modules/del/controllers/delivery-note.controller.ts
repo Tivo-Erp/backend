@@ -145,21 +145,26 @@ export class DeliveryNoteController {
   @Post('delivery-notes/:id/dispatch')
   @RequirePermissions('del:dispatch:manage')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Dispatch for delivery (packed → out_for_delivery)' })
+  @ApiOperation({
+    summary: 'Dispatch for delivery (packed → out_for_delivery)',
+  })
   @ApiResponse({ status: 400, description: 'Driver/carrier required' })
   @ApiResponse({ status: 409, description: 'DN not in packed' })
   dispatch(
     @CurrentTenant() tenantId: string,
+    @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: DispatchDeliveryDto,
   ) {
-    return this.service.dispatch(tenantId, id, dto);
+    return this.service.dispatch(tenantId, user.sub, id, dto);
   }
 
   @Post('delivery-notes/:id/pod')
   @RequirePermissions('del:pod:submit')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Submit proof of delivery (→ delivered, deducts stock)' })
+  @ApiOperation({
+    summary: 'Submit proof of delivery (→ delivered, deducts stock)',
+  })
   @ApiResponse({ status: 400, description: 'POD evidence required' })
   @ApiResponse({ status: 409, description: 'DN not out for delivery' })
   pod(
@@ -187,8 +192,13 @@ export class DeliveryNoteController {
   @Post('delivery-notes/:id/redispatch')
   @RequirePermissions('del:dispatch:manage')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Re-attempt a failed delivery (failed → out_for_delivery)' })
-  @ApiResponse({ status: 409, description: 'Not failed or max retries exceeded' })
+  @ApiOperation({
+    summary: 'Re-attempt a failed delivery (failed → out_for_delivery)',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Not failed or max retries exceeded',
+  })
   redispatch(
     @CurrentTenant() tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,

@@ -29,7 +29,8 @@ export class TimesheetService {
     const logDate = new Date(dto.workDate);
     // Reject future dates (compare date-only, UTC).
     const today = new Date();
-    const dayOf = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const dayOf = (d: Date) =>
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
     if (dayOf(logDate) > dayOf(today)) {
       throw new BadRequestException('PMO_TIMESHEET_FUTURE_DATE');
     }
@@ -66,7 +67,10 @@ export class TimesheetService {
         where: { tenantId, employeeId: employee.id, logDate },
         select: { hours: true },
       });
-      const existing = sameDay.reduce((s, t) => s.add(dec(t.hours)), new Prisma.Decimal(0));
+      const existing = sameDay.reduce(
+        (s, t) => s.add(dec(t.hours)),
+        new Prisma.Decimal(0),
+      );
       if (existing.add(dec(dto.hours)).gt(DAILY_LIMIT)) {
         throw new BadRequestException('PMO_TIMESHEET_DAILY_LIMIT');
       }
@@ -87,7 +91,12 @@ export class TimesheetService {
     });
   }
 
-  async approve(tenantId: string, id: string, approverId: string, dto: ApproveTimesheetDto) {
+  async approve(
+    tenantId: string,
+    id: string,
+    approverId: string,
+    dto: ApproveTimesheetDto,
+  ) {
     const ts = await this.prisma.timesheet.findFirst({
       where: { id, tenantId },
       select: { id: true, status: true },
@@ -106,13 +115,29 @@ export class TimesheetService {
         approvedAt: new Date(),
       },
     });
-    if (count === 0) throw new ConflictException('PMO_TIMESHEET_ALREADY_DECIDED');
+    if (count === 0)
+      throw new ConflictException('PMO_TIMESHEET_ALREADY_DECIDED');
     return this.prisma.timesheet.findFirst({ where: { id, tenantId } });
   }
 
-  async findAll(tenantId: string, query: TimesheetQueryDto, userRoles: string[]) {
-    const select = FieldSelector.buildPrismaSelect(query.fields, userRoles, TIMESHEET_FIELD_CONFIG);
-    const { page = 1, limit = 20, sortOrder = 'desc', projectId, employeeId, status } = query;
+  async findAll(
+    tenantId: string,
+    query: TimesheetQueryDto,
+    userRoles: string[],
+  ) {
+    const select = FieldSelector.buildPrismaSelect(
+      query.fields,
+      userRoles,
+      TIMESHEET_FIELD_CONFIG,
+    );
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      projectId,
+      employeeId,
+      status,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, TS_SORTABLE, 'logDate');
 
     const where: Prisma.TimesheetWhereInput = {

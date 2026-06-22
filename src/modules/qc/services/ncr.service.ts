@@ -96,7 +96,13 @@ export class NcrService {
       userRoles,
       NCR_FIELD_CONFIG,
     );
-    const { page = 1, limit = 20, sortOrder = 'desc', status, inspectionId } = query;
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      status,
+      inspectionId,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, NCR_SORTABLE);
 
     const where: Prisma.NCRReportWhereInput = {
@@ -118,8 +124,17 @@ export class NcrService {
     return PaginatedResponseDto.create(data, total, page, limit);
   }
 
-  async findOne(tenantId: string, id: string, userRoles: string[], fields?: string) {
-    const select = FieldSelector.buildPrismaSelect(fields, userRoles, NCR_FIELD_CONFIG);
+  async findOne(
+    tenantId: string,
+    id: string,
+    userRoles: string[],
+    fields?: string,
+  ) {
+    const select = FieldSelector.buildPrismaSelect(
+      fields,
+      userRoles,
+      NCR_FIELD_CONFIG,
+    );
     const ncr = await this.prisma.nCRReport.findFirst({
       where: { id, tenantId },
       select,

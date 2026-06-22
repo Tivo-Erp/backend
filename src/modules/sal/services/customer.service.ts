@@ -64,7 +64,7 @@ export class CustomerService {
     });
     if (!customer) throw new NotFoundException('SAL_CUSTOMER_NOT_FOUND');
 
-    if (dto.code && dto.code !== (customer as any).code) {
+    if (dto.code && dto.code !== customer.code) {
       const conflict = await this.repo.findByCode(tenantId, dto.code);
       if (conflict && conflict.id !== id)
         throw new ConflictException('SAL_CUSTOMER_CODE_DUPLICATE');

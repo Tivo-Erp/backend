@@ -1,6 +1,8 @@
 # ──────────────────────────────────────────────────────────────
 # ERP Backend — Development Infrastructure
-# Only Postgres & Redis. App runs locally via: npm run start:dev
+# Postgres + Redis are required; RabbitMQ + MinIO are optional (Batch 6) —
+# the app self-disables those features when their env vars are unset.
+# App runs locally via: npm run start:dev   (+ npm run start:worker for jobs)
 # ──────────────────────────────────────────────────────────────
 
 services:
@@ -28,5 +30,42 @@ services:
       timeout: 5s
       retries: 5
 
+  # Optional (INF-002). Set RABBITMQ_URL=amqp://erp:erp_secret_dev@localhost:5672 to enable.
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ['5672:5672', '15672:15672'] # AMQP + management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: erp
+      RABBITMQ_DEFAULT_PASS: erp_secret_dev
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # Optional (INF-003). Set S3_ENDPOINT=localhost S3_PORT=9000 S3_USE_SSL=false
+  # S3_ACCESS_KEY=erp_admin S3_SECRET_KEY=erp_secret_dev to enable.
+  # NOTE: those are the MinIO ROOT credentials — fine for local dev, but never
+  # hand root creds to the app outside dev. Create a scoped service account:
+  #   mc alias set local http://localhost:9000 erp_admin erp_secret_dev
+  #   mc admin user add local erp_app <strong-password>
+  #   mc admin policy attach local readwrite --user erp_app   # or a bucket-scoped policy
+  # then point S3_ACCESS_KEY/S3_SECRET_KEY at the service account instead.
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports: ['9000:9000', '9001:9001'] # API + console
+    environment:
+      MINIO_ROOT_USER: erp_admin
+      MINIO_ROOT_PASSWORD: erp_secret_dev
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
 volumes:
   pgdata:
+  miniodata:

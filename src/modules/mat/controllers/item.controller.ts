@@ -34,7 +34,10 @@ import { ItemService } from '../services/item.service.js';
 import { CreateItemDto } from '../dto/create-item.dto.js';
 import { UpdateItemDto } from '../dto/update-item.dto.js';
 import { ItemQueryDto } from '../dto/item-query.dto.js';
-import { BulkImportItemsDto, BulkImportResultDto } from '../dto/bulk-import-items.dto.js';
+import {
+  BulkImportItemsDto,
+  BulkImportResultDto,
+} from '../dto/bulk-import-items.dto.js';
 
 @ApiTags('Master Data — Items')
 @ApiBearerAuth('JWT-Auth')
@@ -48,17 +51,18 @@ export class ItemController {
   @ApiOperation({ summary: 'Create a new item (SKU)' })
   @ApiResponse({ status: 201, description: 'Item created' })
   @ApiResponse({ status: 409, description: 'SKU duplicate' })
-  create(
-    @CurrentTenant() tenantId: string,
-    @Body() dto: CreateItemDto,
-  ) {
+  create(@CurrentTenant() tenantId: string, @Body() dto: CreateItemDto) {
     return this.itemService.create(tenantId, dto);
   }
 
   @Get()
   @RequirePermissions('mat:item:read')
   @ApiOperation({ summary: 'List items with pagination and filters' })
-  @ApiQuery({ name: 'fields', required: false, description: FieldSelector.describeForSwagger(ITEM_FIELD_CONFIG) })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: FieldSelector.describeForSwagger(ITEM_FIELD_CONFIG),
+  })
   findAll(
     @CurrentTenant() tenantId: string,
     @CurrentUserRoles() roles: string[],
@@ -81,7 +85,11 @@ export class ItemController {
   @Get(':id')
   @RequirePermissions('mat:item:read')
   @ApiOperation({ summary: 'Get item by ID' })
-  @ApiQuery({ name: 'fields', required: false, description: FieldSelector.describeForSwagger(ITEM_FIELD_CONFIG) })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: FieldSelector.describeForSwagger(ITEM_FIELD_CONFIG),
+  })
   @ApiResponse({ status: 404, description: 'Item not found' })
   findOne(
     @CurrentTenant() tenantId: string,

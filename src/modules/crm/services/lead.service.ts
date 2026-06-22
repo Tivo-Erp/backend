@@ -18,7 +18,13 @@ import {
 } from '../dto/crm.dto.js';
 
 const dec = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n);
-const LEAD_SORTABLE = ['createdAt', 'updatedAt', 'companyName', 'status', 'score'] as const;
+const LEAD_SORTABLE = [
+  'createdAt',
+  'updatedAt',
+  'companyName',
+  'status',
+  'score',
+] as const;
 
 @Injectable()
 export class LeadService {
@@ -37,7 +43,8 @@ export class LeadService {
         phone: dto.phone ?? null,
         source: dto.source,
         status: 'new',
-        estimatedValue: dto.estimatedValue != null ? dec(dto.estimatedValue) : null,
+        estimatedValue:
+          dto.estimatedValue != null ? dec(dto.estimatedValue) : null,
         assignedTo: dto.assignedTo ?? null,
         notes: dto.notes ?? null,
         createdBy: userId,
@@ -63,7 +70,12 @@ export class LeadService {
    * Converts a qualified lead into a SAL customer + a CRM opportunity, then
    * marks the lead `won`. Mirrors SRS_07 §1.2 conversion rules.
    */
-  async convert(tenantId: string, userId: string, id: string, dto: ConvertLeadDto) {
+  async convert(
+    tenantId: string,
+    userId: string,
+    id: string,
+    dto: ConvertLeadDto,
+  ) {
     const createCustomer = dto.createCustomer ?? true;
     const createOpportunity = dto.createOpportunity ?? true;
 
@@ -76,7 +88,12 @@ export class LeadService {
 
       let customerId = lead.customerId;
       if (createCustomer && !customerId) {
-        const code = await this.sequences.getNextNumber(tenantId, 'CUS', undefined, tx);
+        const code = await this.sequences.getNextNumber(
+          tenantId,
+          'CUS',
+          undefined,
+          tx,
+        );
         const customer = await tx.customer.create({
           data: {
             tenantId,
@@ -118,15 +135,27 @@ export class LeadService {
         where: { id, tenantId, status: 'qualified' },
         data: { status: 'won', customerId, convertedAt: new Date() },
       });
-      if (claimed.count === 0) throw new ConflictException('CRM_LEAD_NOT_QUALIFIED');
+      if (claimed.count === 0)
+        throw new ConflictException('CRM_LEAD_NOT_QUALIFIED');
 
       return { leadId: lead.id, customerId, opportunity };
     });
   }
 
   async findAll(tenantId: string, query: LeadQueryDto, userRoles: string[]) {
-    const select = FieldSelector.buildPrismaSelect(query.fields, userRoles, LEAD_FIELD_CONFIG);
-    const { page = 1, limit = 20, sortOrder = 'desc', status, assignedTo, search } = query;
+    const select = FieldSelector.buildPrismaSelect(
+      query.fields,
+      userRoles,
+      LEAD_FIELD_CONFIG,
+    );
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      status,
+      assignedTo,
+      search,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, LEAD_SORTABLE);
 
     const where: Prisma.LeadWhereInput = {

@@ -27,7 +27,7 @@ export const NCR_STATUSES = ['open', 'in_progress', 'closed'] as const;
 
 export class CreateInspectionDto {
   @ApiProperty({ enum: QC_SOURCE_TYPES })
-  @IsIn(QC_SOURCE_TYPES as unknown as string[])
+  @IsIn(QC_SOURCE_TYPES)
   sourceType: string;
 
   @ApiProperty({ format: 'uuid' })
@@ -92,14 +92,16 @@ export class SubmitResultsDto {
 }
 
 export class InspectionQueryDto extends PaginatedFieldsQueryDto {
-  @ApiPropertyOptional({ description: 'pending, in_progress, passed, failed, partial_pass' })
+  @ApiPropertyOptional({
+    description: 'pending, in_progress, passed, failed, partial_pass',
+  })
   @IsOptional()
   @IsIn(['pending', 'in_progress', 'passed', 'failed', 'partial_pass'])
   status?: string;
 
   @ApiPropertyOptional({ enum: QC_SOURCE_TYPES })
   @IsOptional()
-  @IsIn(QC_SOURCE_TYPES as unknown as string[])
+  @IsIn(QC_SOURCE_TYPES)
   sourceType?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -120,7 +122,7 @@ export class CreateNCRDto {
   description: string;
 
   @ApiProperty({ enum: NCR_DISPOSITIONS })
-  @IsIn(NCR_DISPOSITIONS as unknown as string[])
+  @IsIn(NCR_DISPOSITIONS)
   disposition: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -132,7 +134,7 @@ export class CreateNCRDto {
 export class UpdateNCRDto {
   @ApiPropertyOptional({ enum: NCR_DISPOSITIONS })
   @IsOptional()
-  @IsIn(NCR_DISPOSITIONS as unknown as string[])
+  @IsIn(NCR_DISPOSITIONS)
   disposition?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
@@ -142,14 +144,14 @@ export class UpdateNCRDto {
 
   @ApiPropertyOptional({ enum: NCR_STATUSES })
   @IsOptional()
-  @IsIn(NCR_STATUSES as unknown as string[])
+  @IsIn(NCR_STATUSES)
   status?: string;
 }
 
 export class NCRQueryDto extends PaginatedFieldsQueryDto {
   @ApiPropertyOptional({ enum: NCR_STATUSES })
   @IsOptional()
-  @IsIn(NCR_STATUSES as unknown as string[])
+  @IsIn(NCR_STATUSES)
   status?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })

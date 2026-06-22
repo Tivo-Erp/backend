@@ -17,7 +17,12 @@ import {
   WorkflowDefinitionQueryDto,
 } from '../dto/workflow.dto.js';
 
-const DEF_SORTABLE = ['name', 'triggerEntity', 'createdAt', 'updatedAt'] as const;
+const DEF_SORTABLE = [
+  'name',
+  'triggerEntity',
+  'createdAt',
+  'updatedAt',
+] as const;
 
 @Injectable()
 export class WorkflowDefinitionService {
@@ -166,9 +171,7 @@ export class WorkflowDefinitionService {
   }
 
   private toJson(v: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
-    return v === undefined || v === null
-      ? Prisma.JsonNull
-      : (v as Prisma.InputJsonValue);
+    return v === undefined || v === null ? Prisma.JsonNull : v;
   }
 
   private rethrowStepConflict(e: unknown): never {

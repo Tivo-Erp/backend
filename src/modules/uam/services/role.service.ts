@@ -1,4 +1,5 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import { CreateRoleDto, UpdateRoleDto } from '../dto/role.dto.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
@@ -37,9 +38,16 @@ export class RoleService {
     });
   }
 
-  async findAll(tenantId: string, queryFields?: string, userRoles: string[] = []) {
+  async findAll(
+    tenantId: string,
+    queryFields?: string,
+    userRoles: string[] = [],
+  ) {
     // Resolve which fields to return
-    const allowed = FieldSelector.resolveAllowedFields(userRoles, ROLE_FIELD_CONFIG);
+    const allowed = FieldSelector.resolveAllowedFields(
+      userRoles,
+      ROLE_FIELD_CONFIG,
+    );
     const requestedFields = queryFields
       ? queryFields.split(',').map((f) => f.trim())
       : ROLE_FIELD_CONFIG.defaultFields;
@@ -58,13 +66,15 @@ export class RoleService {
 
     // Separate flat vs relation fields
     const flatFields = requestedFields.filter((f) => !f.includes('.'));
-    const needsPermissions = requestedFields.some((f) => f.startsWith('permissions.'));
+    const needsPermissions = requestedFields.some((f) =>
+      f.startsWith('permissions.'),
+    );
     const permFields = requestedFields
       .filter((f) => f.startsWith('permissions.'))
       .map((f) => f.replace('permissions.', ''));
 
-    const selectObj: Record<string, any> = {};
-    for (const f of flatFields) selectObj[f] = true;
+    const selectObj: Prisma.RoleSelect = {};
+    for (const f of flatFields) selectObj[f as keyof Prisma.RoleSelect] = true;
 
     if (needsPermissions) {
       selectObj.rolePermissions = {
@@ -82,14 +92,22 @@ export class RoleService {
       orderBy: { isSystem: 'desc' },
     });
 
+    // The select is built dynamically, so the row shape is only known at
+    // runtime; describe the relation parts the transform below touches.
+    type RoleRow = Record<string, unknown> & {
+      rolePermissions?: { permission: Record<string, unknown> }[];
+    };
+
     // Transform rolePermissions → permissions in response
-    return roles.map((r: any) => {
-      const result = { ...r };
-      if (result.rolePermissions) {
-        result.permissions = result.rolePermissions.map((rp: any) => rp.permission);
-        delete result.rolePermissions;
+    return (roles as unknown as RoleRow[]).map((r) => {
+      const { rolePermissions, ...rest } = r;
+      if (rolePermissions) {
+        return {
+          ...rest,
+          permissions: rolePermissions.map((rp) => rp.permission),
+        };
       }
-      return result;
+      return rest;
     });
   }
 
@@ -134,7 +152,7 @@ export class RoleService {
       });
     }
 
-    const data: any = {};
+    const data: Prisma.RoleUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.description !== undefined) data.description = dto.description;
 

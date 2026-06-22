@@ -30,9 +30,9 @@ describe('PiiCrypto', () => {
     });
 
     it('rejects an unknown version / truncated payload', () => {
-      expect(() => PiiCrypto.decrypt(Buffer.from([0x01, 1, 2, 3]).toString('base64'))).toThrow(
-        /PII_PAYLOAD_INVALID/,
-      );
+      expect(() =>
+        PiiCrypto.decrypt(Buffer.from([0x01, 1, 2, 3]).toString('base64')),
+      ).toThrow(/PII_PAYLOAD_INVALID/);
     });
 
     it('refuses to operate without a sufficiently long key', () => {
@@ -46,7 +46,9 @@ describe('PiiCrypto', () => {
       expect(PiiCrypto.encryptOptional(null)).toBeNull();
       expect(PiiCrypto.encryptOptional('')).toBeNull();
       expect(PiiCrypto.decryptOptional(null)).toBeNull();
-      expect(PiiCrypto.decryptOptional(PiiCrypto.encryptOptional('v'))).toBe('v');
+      expect(PiiCrypto.decryptOptional(PiiCrypto.encryptOptional('v'))).toBe(
+        'v',
+      );
     });
   });
 
@@ -60,13 +62,17 @@ describe('PiiCrypto', () => {
     });
 
     it('maskTail reveals only the last 4 characters', () => {
-      expect(PiiCrypto.maskTail(PiiCrypto.encrypt('0011002233445566'))).toBe('••••5566');
+      expect(PiiCrypto.maskTail(PiiCrypto.encrypt('0011002233445566'))).toBe(
+        '••••5566',
+      );
       expect(PiiCrypto.maskTail(PiiCrypto.encrypt('1234'))).toBe('••••');
       expect(PiiCrypto.maskTail(null)).toBeNull();
     });
 
     it('maskName reveals only the first name token', () => {
-      expect(PiiCrypto.maskName(PiiCrypto.encrypt('Nguyễn Văn An'))).toBe('Nguyễn ••••');
+      expect(PiiCrypto.maskName(PiiCrypto.encrypt('Nguyễn Văn An'))).toBe(
+        'Nguyễn ••••',
+      );
       expect(PiiCrypto.maskName(PiiCrypto.encrypt('  '))).toBe('••••');
       expect(PiiCrypto.maskName(null)).toBeNull();
     });

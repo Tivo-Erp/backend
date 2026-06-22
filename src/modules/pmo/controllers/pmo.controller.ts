@@ -164,7 +164,9 @@ export class ProjectController {
 
   @Patch(':id/tasks/:taskId')
   @RequirePermissions('pmo:task:manage')
-  @ApiOperation({ summary: 'Update a task (status recomputes project progress)' })
+  @ApiOperation({
+    summary: 'Update a task (status recomputes project progress)',
+  })
   @ApiResponse({ status: 404, description: 'Task not found' })
   updateTask(
     @CurrentTenant() tenantId: string,
@@ -186,7 +188,10 @@ export class TimesheetController {
   @Post()
   @RequirePermissions('pmo:timesheet:manage')
   @ApiOperation({ summary: 'Log a time entry (max 24h/day, no future dates)' })
-  @ApiResponse({ status: 400, description: 'Future date / daily limit exceeded' })
+  @ApiResponse({
+    status: 400,
+    description: 'Future date / daily limit exceeded',
+  })
   create(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: JwtPayload,

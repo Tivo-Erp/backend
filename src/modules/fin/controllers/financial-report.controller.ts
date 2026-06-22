@@ -29,7 +29,9 @@ export class FinancialReportController {
 
   @Get('trial-balance')
   @RequirePermissions('fin:report:read')
-  @ApiOperation({ summary: 'Trial balance for a fiscal month (posted entries)' })
+  @ApiOperation({
+    summary: 'Trial balance for a fiscal month (posted entries)',
+  })
   @ApiResponse({ status: 200, description: 'Per-account debit/credit totals' })
   trialBalance(@CurrentTenant() tenantId: string, @Query() q: PeriodQueryDto) {
     return this.service.trialBalance(tenantId, q.period);
@@ -57,7 +59,9 @@ export class FinancialReportController {
 
   @Get('cash-flow')
   @RequirePermissions('fin:report:read')
-  @ApiOperation({ summary: 'Cash flow (movement of cash accounts) over a range' })
+  @ApiOperation({
+    summary: 'Cash flow (movement of cash accounts) over a range',
+  })
   cashFlow(@CurrentTenant() tenantId: string, @Query() q: DateRangeQueryDto) {
     return this.service.cashFlow(tenantId, q.from, q.to);
   }

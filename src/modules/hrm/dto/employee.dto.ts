@@ -46,13 +46,19 @@ export class CreateEmployeeDto {
   @IsDateString()
   joinDate: string;
 
-  @ApiPropertyOptional({ example: 15000000, description: 'Monthly basic salary (VND)' })
+  @ApiPropertyOptional({
+    example: 15000000,
+    description: 'Monthly basic salary (VND)',
+  })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   basicSalary?: number;
 
-  @ApiPropertyOptional({ example: 0, description: 'Number of dependents for PIT' })
+  @ApiPropertyOptional({
+    example: 0,
+    description: 'Number of dependents for PIT',
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -63,7 +69,9 @@ export class CreateEmployeeDto {
   @IsString()
   dateOfBirth?: string;
 
-  @ApiPropertyOptional({ description: 'National ID number (encrypted at rest)' })
+  @ApiPropertyOptional({
+    description: 'National ID number (encrypted at rest)',
+  })
   @IsOptional()
   @IsString()
   idNumber?: string;
@@ -73,12 +81,16 @@ export class CreateEmployeeDto {
   @IsString()
   taxCode?: string;
 
-  @ApiPropertyOptional({ description: 'Social insurance number (encrypted at rest)' })
+  @ApiPropertyOptional({
+    description: 'Social insurance number (encrypted at rest)',
+  })
   @IsOptional()
   @IsString()
   socialInsNum?: string;
 
-  @ApiPropertyOptional({ description: 'Bank account number (encrypted at rest)' })
+  @ApiPropertyOptional({
+    description: 'Bank account number (encrypted at rest)',
+  })
   @IsOptional()
   @IsString()
   bankAccNum?: string;
@@ -113,7 +125,9 @@ export class UpdateEmployeeDto {
   @MaxLength(200)
   position?: string;
 
-  @ApiPropertyOptional({ description: 'probation, active, on_leave, terminated' })
+  @ApiPropertyOptional({
+    description: 'probation, active, on_leave, terminated',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(20)
@@ -144,7 +158,9 @@ export class UpdateEmployeeDto {
 }
 
 export class EmployeeQueryDto extends PaginatedFieldsQueryDto {
-  @ApiPropertyOptional({ description: 'probation, active, on_leave, terminated' })
+  @ApiPropertyOptional({
+    description: 'probation, active, on_leave, terminated',
+  })
   @IsOptional()
   @IsString()
   status?: string;

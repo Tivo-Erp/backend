@@ -2,7 +2,7 @@ import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/index.js';
 import { tenantContext } from '../../infra/database/tenant-context.js';
-import { JwtPayload } from '../../modules/auth/interfaces/jwt-payload.interface.js';
+import type { AuthenticatedRequest } from '../types/authenticated-request.js';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -18,8 +18,8 @@ export class TenantGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as JwtPayload;
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const user = request.user;
 
     if (!user?.tenantId || !UUID_RE.test(user.tenantId)) return false;
 

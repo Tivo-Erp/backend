@@ -16,7 +16,13 @@ import {
   UpdateTicketDto,
 } from '../dto/crm.dto.js';
 
-const TICKET_SORTABLE = ['createdAt', 'updatedAt', 'ticketNumber', 'priority', 'status'] as const;
+const TICKET_SORTABLE = [
+  'createdAt',
+  'updatedAt',
+  'ticketNumber',
+  'priority',
+  'status',
+] as const;
 
 /** SLA resolution targets (hours) per priority — SRS_07 §1.3. */
 const SLA_RESOLUTION_HOURS: Record<string, number> = {
@@ -41,7 +47,12 @@ export class TicketService {
       });
       if (!customer) throw new NotFoundException('CRM_CUSTOMER_NOT_FOUND');
 
-      const ticketNumber = await this.sequences.getNextNumber(tenantId, 'TKT', undefined, tx);
+      const ticketNumber = await this.sequences.getNextNumber(
+        tenantId,
+        'TKT',
+        undefined,
+        tx,
+      );
       const slaDueAt = new Date(
         Date.now() + (SLA_RESOLUTION_HOURS[dto.priority] ?? 24) * 3_600_000,
       );
@@ -64,9 +75,16 @@ export class TicketService {
     });
   }
 
-  async update(tenantId: string, userId: string, id: string, dto: UpdateTicketDto) {
+  async update(
+    tenantId: string,
+    userId: string,
+    id: string,
+    dto: UpdateTicketDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
-      const ticket = await tx.supportTicket.findFirst({ where: { id, tenantId } });
+      const ticket = await tx.supportTicket.findFirst({
+        where: { id, tenantId },
+      });
       if (!ticket) throw new NotFoundException('CRM_TICKET_NOT_FOUND');
       if (ticket.status === 'closed') {
         throw new ConflictException('CRM_TICKET_ALREADY_CLOSED');
@@ -74,14 +92,19 @@ export class TicketService {
 
       const data: Prisma.SupportTicketUpdateInput = {};
       if (dto.assignedTo !== undefined) data.assignedTo = dto.assignedTo;
-      if (dto.satisfactionScore !== undefined) data.satisfactionScore = dto.satisfactionScore;
+      if (dto.satisfactionScore !== undefined)
+        data.satisfactionScore = dto.satisfactionScore;
       if (dto.status !== undefined) {
         data.status = dto.status;
-        if (dto.status === 'resolved' && !ticket.resolvedAt) data.resolvedAt = new Date();
+        if (dto.status === 'resolved' && !ticket.resolvedAt)
+          data.resolvedAt = new Date();
       }
       // First non-internal customer-facing touch stamps the SLA first-response time.
       // Internal notes do not count as a response to the customer.
-      if (!ticket.firstResponseAt && (dto.status === 'in_progress' || (dto.comment && !dto.isInternal))) {
+      if (
+        !ticket.firstResponseAt &&
+        (dto.status === 'in_progress' || (dto.comment && !dto.isInternal))
+      ) {
         data.firstResponseAt = new Date();
       }
 
@@ -97,13 +120,28 @@ export class TicketService {
       }
 
       await tx.supportTicket.update({ where: { id }, data });
-      return tx.supportTicket.findFirst({ where: { id, tenantId }, include: { comments: true } });
+      return tx.supportTicket.findFirst({
+        where: { id, tenantId },
+        include: { comments: true },
+      });
     });
   }
 
   async findAll(tenantId: string, query: TicketQueryDto, userRoles: string[]) {
-    const select = FieldSelector.buildPrismaSelect(query.fields, userRoles, TICKET_FIELD_CONFIG);
-    const { page = 1, limit = 20, sortOrder = 'desc', customerId, status, priority, assignedTo } = query;
+    const select = FieldSelector.buildPrismaSelect(
+      query.fields,
+      userRoles,
+      TICKET_FIELD_CONFIG,
+    );
+    const {
+      page = 1,
+      limit = 20,
+      sortOrder = 'desc',
+      customerId,
+      status,
+      priority,
+      assignedTo,
+    } = query;
     const sortBy = safeSortBy(query.sortBy, TICKET_SORTABLE);
 
     const where: Prisma.SupportTicketWhereInput = {

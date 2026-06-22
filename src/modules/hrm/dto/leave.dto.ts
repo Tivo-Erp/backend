@@ -67,7 +67,7 @@ export class CreateLeaveRequestDto {
 
   @ApiPropertyOptional({ enum: HALF_DAY_VALUES, default: 'full_day' })
   @IsOptional()
-  @IsIn(HALF_DAY_VALUES as unknown as string[])
+  @IsIn(HALF_DAY_VALUES)
   halfDay?: string;
 
   @ApiPropertyOptional()
@@ -90,7 +90,9 @@ export class LeaveRequestQueryDto extends PaginatedFieldsQueryDto {
   @IsUUID()
   employeeId?: string;
 
-  @ApiPropertyOptional({ description: 'pending, approved, rejected, cancelled' })
+  @ApiPropertyOptional({
+    description: 'pending, approved, rejected, cancelled',
+  })
   @IsOptional()
   @IsString()
   status?: string;

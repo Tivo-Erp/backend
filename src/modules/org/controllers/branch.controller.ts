@@ -9,10 +9,22 @@ import {
   Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiBody, ApiParam, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiBody,
+  ApiParam,
+  ApiResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { BranchService } from '../services/branch.service.js';
 import { CreateBranchDto, UpdateBranchDto } from '../dto/branch.dto.js';
-import { CurrentTenant, CurrentUserRoles, RequirePermissions } from '../../../common/decorators/index.js';
+import {
+  CurrentTenant,
+  CurrentUserRoles,
+  RequirePermissions,
+} from '../../../common/decorators/index.js';
 import { PaginatedFieldsQueryDto } from '../../../common/dto/fields-query.dto.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { BRANCH_FIELD_CONFIG } from '../config/branch.field-config.js';
@@ -40,7 +52,11 @@ export class BranchController {
 
   @Post()
   @RequirePermissions('org:branch:create')
-  @ApiOperation({ summary: 'Create Branch', description: 'Create a new branch under current tenant. Requires `org:branch:create` permission.' })
+  @ApiOperation({
+    summary: 'Create Branch',
+    description:
+      'Create a new branch under current tenant. Requires `org:branch:create` permission.',
+  })
   @ApiBody({ type: CreateBranchDto })
   @ApiResponse({ status: 201, description: 'Branch created' })
   @ApiResponse({ status: 409, description: 'Branch code already exists' })
@@ -53,14 +69,20 @@ export class BranchController {
 
   @Get()
   @RequirePermissions('org:branch:read')
-  @ApiOperation({ summary: 'List Branches', description: 'Paginated list of branches with Sparse Fieldsets support.' })
+  @ApiOperation({
+    summary: 'List Branches',
+    description: 'Paginated list of branches with Sparse Fieldsets support.',
+  })
   @ApiQuery({
     name: 'fields',
     required: false,
     description: FieldSelector.describeForSwagger(BRANCH_FIELD_CONFIG),
     example: 'id,code,name,city',
   })
-  @ApiResponse({ status: 200, description: 'Paginated branches with selected fields' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated branches with selected fields',
+  })
   async findAll(
     @CurrentTenant() tenantId: string,
     @CurrentUserRoles() userRoles: string[],
@@ -71,7 +93,10 @@ export class BranchController {
 
   @Patch(':id')
   @RequirePermissions('org:branch:update')
-  @ApiOperation({ summary: 'Update Branch', description: 'Partial update of a branch.' })
+  @ApiOperation({
+    summary: 'Update Branch',
+    description: 'Partial update of a branch.',
+  })
   @ApiParam({ name: 'id', description: 'Branch UUID', format: 'uuid' })
   @ApiBody({ type: UpdateBranchDto })
   @ApiResponse({ status: 200, description: 'Branch updated' })
@@ -86,7 +111,10 @@ export class BranchController {
 
   @Delete(':id')
   @RequirePermissions('org:branch:delete')
-  @ApiOperation({ summary: 'Delete Branch', description: 'Soft-delete a branch.' })
+  @ApiOperation({
+    summary: 'Delete Branch',
+    description: 'Soft-delete a branch.',
+  })
   @ApiParam({ name: 'id', description: 'Branch UUID', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Branch deleted' })
   @ApiResponse({ status: 404, description: 'Branch not found' })

@@ -48,10 +48,22 @@ export class PrismaService
       isolationLevel?: Prisma.TransactionIsolationLevel;
     },
   ): Promise<R>;
-  override $transaction(arg: any, options?: any): Promise<any> {
+  override $transaction(
+    arg:
+      | ((tx: Prisma.TransactionClient) => Promise<unknown>)
+      | Prisma.PrismaPromise<unknown>[],
+    options?: {
+      maxWait?: number;
+      timeout?: number;
+      isolationLevel?: Prisma.TransactionIsolationLevel;
+    },
+  ): Promise<unknown> {
     const tenantId = currentTenantId();
     if (!tenantId) {
-      return super.$transaction(arg, options);
+      return super.$transaction(
+        arg as Parameters<PrismaClient['$transaction']>[0],
+        options,
+      );
     }
     if (typeof arg === 'function') {
       return super.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -59,18 +71,15 @@ export class PrismaService
         return arg(tx);
       }, options);
     }
-    if (Array.isArray(arg)) {
-      return super
-        .$transaction(
-          [
-            this
-              .$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`,
-            ...arg,
-          ],
-          options,
-        )
-        .then((results) => results.slice(1));
-    }
-    return super.$transaction(arg, options);
+    return super
+      .$transaction(
+        [
+          this
+            .$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`,
+          ...arg,
+        ],
+        options,
+      )
+      .then((results) => results.slice(1));
   }
 }

@@ -118,6 +118,7 @@ model User {
   lastLoginAt      DateTime?
   lastLoginIp      String?   @db.VarChar(45)
   isSuperAdmin     Boolean   @default(false)
+  emailVerifiedAt  DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
@@ -182,15 +183,56 @@ model UserRole {
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @db.Uuid
-  token     String    @unique @db.VarChar(500)
-  expiresAt DateTime
-  createdAt DateTime  @default(now())
-  revokedAt DateTime?
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  // SEC: only the SHA-256 hex hash of the refresh token is stored.
+  tokenHash    String    @unique @db.VarChar(64)
+  // SEC-001 rotation family: all tokens minted from one login share a familyId;
+  // replaying a rotated (revoked) token lets us revoke the whole family.
+  familyId     String    @default(uuid()) @db.Uuid
+  replacedById String?   @db.Uuid
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
 
   @@index([userId])
+  @@index([familyId])
   @@map("refresh_tokens")
+}
+
+// SEC-001: single-use, hashed tokens for password reset, email verification
+// and the MFA login challenge. Only the SHA-256 hash is persisted.
+model AuthToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  type      String    @db.VarChar(30) // password_reset, email_verify, mfa_challenge
+  tokenHash String    @unique @db.VarChar(128)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
+  @@map("auth_tokens")
+}
+
+// INF-002: transactional outbox. Written inside the business mutation's
+// transaction; drained to RabbitMQ by the outbox dispatcher.
+model OutboxEvent {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  aggregateType String    @db.VarChar(50)
+  aggregateId   String    @db.VarChar(64)
+  eventType     String    @db.VarChar(100)
+  payload       Json
+  status        String    @default("pending") @db.VarChar(20) // pending, processing, published, failed
+  attempts      Int       @default(0)
+  createdAt     DateTime  @default(now())
+  publishedAt   DateTime?
+  claimedAt     DateTime? // set when a dispatcher claims the row (status=processing); stale claims are reclaimed
+
+  @@index([status, createdAt])
+  @@index([tenantId])
+  @@map("outbox_events")
 }
 
 model AuditLog {
@@ -1153,7 +1195,7 @@ model DeliveryNote {
   driverName           String?   @db.VarChar(200)
   driverPhone          String?   @db.VarChar(20)
   vehiclePlate         String?   @db.VarChar(20)
-  carrierId            String?   @db.Uuid // carrier ref (M-SHP deferred — no FK yet)
+  carrierId            String?   @db.Uuid // carrier ref (M-SHP — FK to carriers)
   serviceType          String?   @db.VarChar(50) // standard, express, same_day
   packedWeightKg       Decimal?  @db.Decimal(10, 3)
   totalPackages        Int       @default(1)
@@ -1174,7 +1216,9 @@ model DeliveryNote {
   deliveredAt        DateTime?
   deletedAt          DateTime?
 
-  lines DeliveryNoteLine[]
+  lines    DeliveryNoteLine[]
+  carrier  Carrier?           @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+  shipment Shipment?
 
   @@unique([tenantId, dnNumber])
   @@index([tenantId, status])
@@ -1343,6 +1387,7 @@ model SupportTicket {
   category          String?   @db.VarChar(50)
   assignedTo        String?   @db.Uuid
   slaDueAt          DateTime?
+  slaEscalatedAt    DateTime? // watermark: set once when SLA-breach escalation has fired for this ticket
   firstResponseAt   DateTime?
   resolvedAt        DateTime?
   satisfactionScore Int?
@@ -1482,4 +1527,81 @@ model Timesheet {
   @@index([tenantId, employeeId, logDate])
   @@index([tenantId, projectId])
   @@map("timesheets")
+}
+
+// ============================================================
+// SHIPPING & LOGISTICS (M-SHP)  — Batch 7
+// ============================================================
+
+model Carrier {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  code            String   @db.VarChar(30) // GHN, GHTK, VNPOST, DHL
+  name            String   @db.VarChar(200)
+  apiEndpoint     String?  @db.Text
+  apiKeyEncrypted String?  @db.Text // encrypted via PiiCrypto (ADR-007)
+  webhookSecret   String?  @db.VarChar(255) // HMAC secret for inbound tracking webhooks
+  config          Json? // defaultServiceType, autoLabelPrint, pickupSchedule, supportedRegions[]
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  shipments     Shipment[]
+  deliveryNotes DeliveryNote[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("carriers")
+}
+
+model Shipment {
+  id                String    @id @default(uuid()) @db.Uuid
+  tenantId          String    @db.Uuid
+  shipmentNumber    String    @db.VarChar(30)
+  dnId              String    @unique @db.Uuid
+  carrierId         String    @db.Uuid
+  trackingNumber    String?   @db.VarChar(100)
+  shippingLabelKey  String?   @db.Text // MinIO object key ({tenantId}/shp/{shipmentId}/...)
+  status            String    @default("created") @db.VarChar(30) // created,label_printed,picked_up,in_transit,out_for_delivery,delivered,failed,returned
+  serviceType       String?   @db.VarChar(50)
+  weightKg          Decimal?  @db.Decimal(10, 3)
+  lengthCm          Decimal?  @db.Decimal(10, 2)
+  widthCm           Decimal?  @db.Decimal(10, 2)
+  heightCm          Decimal?  @db.Decimal(10, 2)
+  isCod             Boolean   @default(false)
+  codAmount         Decimal?  @db.Decimal(19, 4)
+  shippingCost      Decimal?  @db.Decimal(19, 4)
+  trackingToken     String?   @unique @db.VarChar(64) // opaque token for the public tracking link
+  estimatedDelivery DateTime?
+  actualDelivery    DateTime?
+  failureReason     String?   @db.VarChar(255)
+  createdBy         String    @db.Uuid
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  carrier        Carrier         @relation(fields: [carrierId], references: [id], onDelete: Restrict)
+  dn             DeliveryNote    @relation(fields: [dnId], references: [id], onDelete: Restrict)
+  trackingEvents TrackingEvent[]
+
+  @@unique([tenantId, shipmentNumber])
+  @@unique([tenantId, trackingNumber])
+  @@index([tenantId, status])
+  @@index([carrierId])
+  @@map("shipments")
+}
+
+model TrackingEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  shipmentId  String   @db.Uuid
+  status      String   @db.VarChar(30)
+  description String?  @db.Text
+  location    String?  @db.VarChar(255)
+  eventTime   DateTime
+  rawData     Json?
+  createdAt   DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, eventTime])
+  @@map("tracking_events")
 }

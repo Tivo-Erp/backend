@@ -1,8 +1,18 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { AuditLogService } from '../services/audit-log.service.js';
 import { AuditLogQueryDto } from '../dto/audit-log-query.dto.js';
-import { CurrentTenant, CurrentUserRoles, RequirePermissions } from '../../../common/decorators/index.js';
+import {
+  CurrentTenant,
+  CurrentUserRoles,
+  RequirePermissions,
+} from '../../../common/decorators/index.js';
 import { FieldSelector } from '../../../common/utils/field-selector.js';
 import { AUDIT_LOG_FIELD_CONFIG } from '../config/audit-log.field-config.js';
 
@@ -14,14 +24,20 @@ export class AuditLogController {
 
   @Get()
   @RequirePermissions('uam:audit:read')
-  @ApiOperation({ summary: 'List Audit Logs', description: 'Paginated audit log query with Sparse Fieldsets support.' })
+  @ApiOperation({
+    summary: 'List Audit Logs',
+    description: 'Paginated audit log query with Sparse Fieldsets support.',
+  })
   @ApiQuery({
     name: 'fields',
     required: false,
     description: FieldSelector.describeForSwagger(AUDIT_LOG_FIELD_CONFIG),
     example: 'id,module,action,userId,createdAt',
   })
-  @ApiResponse({ status: 200, description: 'Paginated audit logs with selected fields' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated audit logs with selected fields',
+  })
   async findAll(
     @CurrentTenant() tenantId: string,
     @CurrentUserRoles() userRoles: string[],

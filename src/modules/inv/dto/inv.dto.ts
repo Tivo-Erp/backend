@@ -19,24 +19,29 @@ import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 
 export class InventoryQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   warehouseId?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   itemId?: string;
 
   @ApiPropertyOptional({ description: 'Search by SKU or item name' })
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   search?: string;
 
   @ApiPropertyOptional({ description: 'Filter items below reorder point' })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   @Transform(({ value }) => value === 'true' || value === true)
   belowRop?: boolean;
 
   @ApiPropertyOptional({ description: 'Include items with zero stock' })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   @Transform(({ value }) => value === 'true' || value === true)
   includeZero?: boolean;
 }
@@ -44,80 +49,99 @@ export class InventoryQueryDto extends PaginationQueryDto {
 // ── INV-001: Movement History Query ──────────────────────────
 
 export enum MovementType {
-  GRN_RECEIPT                = 'grn_receipt',
-  SALES_SHIPMENT             = 'sales_shipment',
-  ADJUSTMENT                 = 'adjustment',
-  TRANSFER_IN                = 'transfer_in',
-  TRANSFER_OUT               = 'transfer_out',
-  MANUFACTURING_CONSUMPTION  = 'manufacturing_consumption',
-  MANUFACTURING_OUTPUT       = 'manufacturing_output',
+  GRN_RECEIPT = 'grn_receipt',
+  SALES_SHIPMENT = 'sales_shipment',
+  ADJUSTMENT = 'adjustment',
+  TRANSFER_IN = 'transfer_in',
+  TRANSFER_OUT = 'transfer_out',
+  MANUFACTURING_CONSUMPTION = 'manufacturing_consumption',
+  MANUFACTURING_OUTPUT = 'manufacturing_output',
 }
 
 export class MovementQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   itemId?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   warehouseId?: string;
 
   @ApiPropertyOptional({ enum: MovementType })
-  @IsOptional() @IsEnum(MovementType)
+  @IsOptional()
+  @IsEnum(MovementType)
   movementType?: MovementType;
 
   @ApiPropertyOptional({ example: '2026-01-01' })
-  @IsOptional() @IsDateString()
+  @IsOptional()
+  @IsDateString()
   dateFrom?: string;
 
   @ApiPropertyOptional({ example: '2026-12-31' })
-  @IsOptional() @IsDateString()
+  @IsOptional()
+  @IsDateString()
   dateTo?: string;
 }
 
 // ── INV-002: Stock Adjustment ─────────────────────────────────
 
 export enum AdjustmentReason {
-  DAMAGED        = 'damaged',
+  DAMAGED = 'damaged',
   COUNT_VARIANCE = 'count_variance',
-  EXPIRED        = 'expired',
-  INITIAL_STOCK  = 'initial_stock',
-  OTHER          = 'other',
+  EXPIRED = 'expired',
+  INITIAL_STOCK = 'initial_stock',
+  OTHER = 'other',
 }
 
 export class AdjustmentLineDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID()
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
   itemId: string;
 
   @ApiProperty({ description: '+positive or -negative', example: -5 })
   @IsNumber({ maxDecimalPlaces: 4 })
   adjustmentQty: number;
 
-  @ApiProperty({ example: 'PCS' }) @IsString()
+  @ApiProperty({ example: 'PCS' })
+  @IsString()
   uom: string;
 
-  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID()
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
   binId?: string;
 
-  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID()
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
   lotId?: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsNumber({ maxDecimalPlaces: 4 })
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
   costPerUnit?: number;
 }
 
 export class CreateStockAdjustmentDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID()
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
   warehouseId: string;
 
-  @ApiProperty({ enum: AdjustmentReason }) @IsEnum(AdjustmentReason)
+  @ApiProperty({ enum: AdjustmentReason })
+  @IsEnum(AdjustmentReason)
   reasonCode: AdjustmentReason;
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000)
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   notes?: string;
 
   @ApiProperty({ type: [AdjustmentLineDto] })
-  @IsArray() @ArrayMinSize(1)
+  @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => AdjustmentLineDto)
   lines: AdjustmentLineDto[];
@@ -126,38 +150,51 @@ export class CreateStockAdjustmentDto {
 // ── INV-003: Stock Transfer ───────────────────────────────────
 
 export class TransferLineDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID()
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
   itemId: string;
 
   @ApiProperty({ example: 10 })
   @IsNumber({ maxDecimalPlaces: 4 })
   quantity: number;
 
-  @ApiProperty({ example: 'PCS' }) @IsString()
+  @ApiProperty({ example: 'PCS' })
+  @IsString()
   uom: string;
 
-  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID()
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
   fromBinId?: string;
 
-  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID()
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
   toBinId?: string;
 
-  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID()
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
   lotId?: string;
 }
 
 export class CreateStockTransferDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID()
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
   fromWarehouseId: string;
 
-  @ApiProperty({ format: 'uuid' }) @IsUUID()
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
   toWarehouseId: string;
 
-  @ApiPropertyOptional() @IsOptional() @IsString()
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   notes?: string;
 
   @ApiProperty({ type: [TransferLineDto] })
-  @IsArray() @ArrayMinSize(1)
+  @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => TransferLineDto)
   lines: TransferLineDto[];

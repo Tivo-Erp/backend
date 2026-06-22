@@ -79,7 +79,13 @@ const TS_BASE = [
   'status',
   'createdAt',
 ];
-const TS_FULL = [...TS_BASE, 'description', 'approvedBy', 'approvedAt', 'updatedAt'];
+const TS_FULL = [
+  ...TS_BASE,
+  'description',
+  'approvedBy',
+  'approvedAt',
+  'updatedAt',
+];
 
 export const TIMESHEET_FIELD_CONFIG: FieldConfig = {
   defaultFields: TS_BASE,

@@ -16,6 +16,20 @@ import type { Namespace, Server, Socket } from 'socket.io';
 import type { JwtPayload } from '../../auth/interfaces/jwt-payload.interface.js';
 import { NotificationService } from '../services/notification.service.js';
 
+/** Identity stashed on a socket after a successful handshake verification. */
+interface AuthedSocketData {
+  userId?: string;
+  tenantId?: string;
+}
+
+/** A connected socket carrying our verified auth identity in `data`. */
+type AuthedSocket = Socket<
+  Record<string, never>,
+  Record<string, never>,
+  Record<string, never>,
+  AuthedSocketData
+>;
+
 /**
  * Socket.IO gateway for realtime notifications (ADR-014).
  *
@@ -86,7 +100,7 @@ export class NotificationGateway
     }
   }
 
-  handleConnection(client: Socket) {
+  handleConnection(client: AuthedSocket) {
     try {
       const token = this.extractToken(client);
       const payload = this.jwt.verify<JwtPayload>(token, {
@@ -95,13 +109,13 @@ export class NotificationGateway
       });
       client.data.userId = payload.sub;
       client.data.tenantId = payload.tenantId;
-      client.join(this.room(payload.tenantId, payload.sub));
+      void client.join(this.room(payload.tenantId, payload.sub));
     } catch {
       client.disconnect(true);
     }
   }
 
-  handleDisconnect(_client: Socket) {
+  handleDisconnect() {
     // rooms are cleaned up automatically by socket.io on disconnect
   }
 
@@ -112,11 +126,11 @@ export class NotificationGateway
    */
   @SubscribeMessage('notification:read')
   async onNotificationRead(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody() body: { id?: string },
   ) {
-    const userId = client.data.userId as string | undefined;
-    const tenantId = client.data.tenantId as string | undefined;
+    const userId = client.data.userId;
+    const tenantId = client.data.tenantId;
     if (!userId || !tenantId || typeof body?.id !== 'string') {
       return { success: false };
     }
@@ -145,7 +159,7 @@ export class NotificationGateway
     return `t:${tenantId}:u:${userId}`;
   }
 
-  private extractToken(client: Socket): string {
+  private extractToken(client: AuthedSocket): string {
     const fromAuth = (client.handshake.auth as { token?: string })?.token;
     if (fromAuth) return fromAuth.replace(/^Bearer\s+/i, '');
     const header = client.handshake.headers['authorization'];

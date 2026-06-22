@@ -13,28 +13,35 @@ import {
 } from 'class-validator';
 
 export enum ItemType {
-  PRODUCT        = 'product',
-  RAW_MATERIAL   = 'raw_material',
-  SEMI_FINISHED  = 'semi_finished',
-  SERVICE        = 'service',
-  CONSUMABLE     = 'consumable',
+  PRODUCT = 'product',
+  RAW_MATERIAL = 'raw_material',
+  SEMI_FINISHED = 'semi_finished',
+  SERVICE = 'service',
+  CONSUMABLE = 'consumable',
 }
 
 export class CreateItemDto {
   @ApiProperty({ example: 'SKU-001' })
-  @IsString() @MinLength(1) @MaxLength(100)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   sku: string;
 
   @ApiProperty({ example: 'Widget A' })
-  @IsString() @MinLength(1) @MaxLength(500)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
   name: string;
 
   @ApiPropertyOptional({ example: 'A small widget for assembly' })
-  @IsOptional() @IsString() @MaxLength(5000)
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
   description?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional() @IsUUID()
+  @IsOptional()
+  @IsUUID()
   categoryId?: string;
 
   @ApiProperty({ enum: ItemType })
@@ -42,42 +49,58 @@ export class CreateItemDto {
   itemType: ItemType;
 
   @ApiProperty({ example: 'PCS' })
-  @IsString() @MaxLength(20)
+  @IsString()
+  @MaxLength(20)
   baseUom: string;
 
   @ApiPropertyOptional({ example: 0.5 })
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 4 }) @Min(0)
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
   weight?: number;
 
   @ApiPropertyOptional({ default: false })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isBatchTracked?: boolean;
 
   @ApiPropertyOptional({ default: false })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isSerialTracked?: boolean;
 
   @ApiPropertyOptional({ default: true })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isPurchasable?: boolean;
 
   @ApiPropertyOptional({ default: true })
-  @IsOptional() @IsBoolean()
+  @IsOptional()
+  @IsBoolean()
   isSellable?: boolean;
 
   @ApiPropertyOptional({ example: 100 })
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 4 }) @Min(0)
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
   minStockLevel?: number;
 
   @ApiPropertyOptional({ example: 20 })
-  @IsOptional() @IsNumber({ maxDecimalPlaces: 4 }) @Min(0)
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
   safetyStock?: number;
 
   @ApiPropertyOptional({ example: 7 })
-  @IsOptional() @IsInt() @Min(0)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
   leadTimeDays?: number;
 
-  @ApiPropertyOptional({ description: 'Free-form JSON attributes', example: { color: 'red', size: 'L' } })
+  @ApiPropertyOptional({
+    description: 'Free-form JSON attributes',
+    example: { color: 'red', size: 'L' },
+  })
   @IsOptional()
   customAttributes?: Record<string, unknown>;
 }

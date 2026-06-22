@@ -139,7 +139,9 @@ export class WorkOrderController {
   @Post(':id/material-consumption')
   @RequirePermissions('mfg:wo:execute')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Report material consumption (deduct raw materials)' })
+  @ApiOperation({
+    summary: 'Report material consumption (deduct raw materials)',
+  })
   @ApiResponse({ status: 400, description: 'Insufficient stock' })
   @ApiResponse({ status: 409, description: 'Work order not executable' })
   consume(

@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync,
+} from 'node:crypto';
 
 /**
  * PII field encryption — AES-256-GCM (ADR-007).
@@ -50,28 +55,39 @@ export class PiiCrypto {
   static encrypt(plaintext: string): string {
     const iv = randomBytes(IV_LEN);
     const cipher = createCipheriv(ALGO, dataKey(), iv);
-    const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+    const enc = Buffer.concat([
+      cipher.update(plaintext, 'utf8'),
+      cipher.final(),
+    ]);
     const tag = cipher.getAuthTag();
-    return Buffer.concat([Buffer.from([VERSION]), iv, tag, enc]).toString('base64');
+    return Buffer.concat([Buffer.from([VERSION]), iv, tag, enc]).toString(
+      'base64',
+    );
   }
 
   /** Decrypts a base64 wire-format value back to plaintext. */
   static decrypt(payload: string): string {
     const buf = Buffer.from(payload, 'base64');
     if (buf.length < 1 + IV_LEN + TAG_LEN || buf[0] !== VERSION) {
-      throw new Error('PII_PAYLOAD_INVALID: unknown version or truncated payload');
+      throw new Error(
+        'PII_PAYLOAD_INVALID: unknown version or truncated payload',
+      );
     }
     const iv = buf.subarray(1, 1 + IV_LEN);
     const tag = buf.subarray(1 + IV_LEN, 1 + IV_LEN + TAG_LEN);
     const enc = buf.subarray(1 + IV_LEN + TAG_LEN);
     const decipher = createDecipheriv(ALGO, dataKey(), iv);
     decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8');
+    return Buffer.concat([decipher.update(enc), decipher.final()]).toString(
+      'utf8',
+    );
   }
 
   /** Encrypts an optional value (null/undefined pass through as null). */
   static encryptOptional(plaintext?: string | null): string | null {
-    return plaintext == null || plaintext === '' ? null : this.encrypt(plaintext);
+    return plaintext == null || plaintext === ''
+      ? null
+      : this.encrypt(plaintext);
   }
 
   /** Decrypts an optional value (null passes through). */

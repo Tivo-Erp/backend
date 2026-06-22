@@ -34,7 +34,7 @@ export class CreateNotificationDto {
   body?: string;
 
   @ApiProperty({ enum: NOTIFICATION_CATEGORIES })
-  @IsIn(NOTIFICATION_CATEGORIES as unknown as string[])
+  @IsIn(NOTIFICATION_CATEGORIES)
   category: string;
 
   @ApiPropertyOptional({ maxLength: 50 })
@@ -57,7 +57,7 @@ export class CreateNotificationDto {
 export class NotificationQueryDto extends PaginatedFieldsQueryDto {
   @ApiPropertyOptional({ enum: NOTIFICATION_CATEGORIES })
   @IsOptional()
-  @IsIn(NOTIFICATION_CATEGORIES as unknown as string[])
+  @IsIn(NOTIFICATION_CATEGORIES)
   category?: string;
 
   @ApiPropertyOptional({ description: 'Filter by read state' })
@@ -69,7 +69,7 @@ export class NotificationQueryDto extends PaginatedFieldsQueryDto {
 
 export class UpdatePreferenceDto {
   @ApiProperty({ enum: NOTIFICATION_CATEGORIES })
-  @IsIn(NOTIFICATION_CATEGORIES as unknown as string[])
+  @IsIn(NOTIFICATION_CATEGORIES)
   category: string;
 
   @ApiPropertyOptional()

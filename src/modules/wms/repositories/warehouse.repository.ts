@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../infra/database/prisma.service.js';
 import {
   CreateWarehouseDto,
@@ -53,7 +53,9 @@ export class WarehouseRepository {
   }
 
   async assertWarehouseOwnership(tenantId: string, warehouseId: string) {
-    const wh = await this.prisma.warehouse.findFirst({ where: { id: warehouseId, tenantId } });
+    const wh = await this.prisma.warehouse.findFirst({
+      where: { id: warehouseId, tenantId },
+    });
     if (!wh) throw new NotFoundException('WMS_WAREHOUSE_NOT_FOUND');
     return wh;
   }
@@ -77,7 +79,9 @@ export class WarehouseRepository {
   }
 
   async assertZoneOwnership(warehouseId: string, zoneId: string) {
-    const zone = await this.prisma.zone.findFirst({ where: { id: zoneId, warehouseId } });
+    const zone = await this.prisma.zone.findFirst({
+      where: { id: zoneId, warehouseId },
+    });
     if (!zone) throw new NotFoundException('WMS_ZONE_NOT_FOUND');
     return zone;
   }

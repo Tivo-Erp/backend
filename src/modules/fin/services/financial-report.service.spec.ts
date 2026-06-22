@@ -28,14 +28,26 @@ describe('FinancialReportService', () => {
   describe('trialBalance', () => {
     it('aggregates posted entries per account and reports balanced totals', async () => {
       prisma.journalBatch.findMany.mockResolvedValue([
-        { entries: [
-          { accountCode: '131', debitAmount: '1000', creditAmount: '0' },
-          { accountCode: '511', debitAmount: '0', creditAmount: '1000' },
-        ] },
+        {
+          entries: [
+            { accountCode: '131', debitAmount: '1000', creditAmount: '0' },
+            { accountCode: '511', debitAmount: '0', creditAmount: '1000' },
+          ],
+        },
       ]);
       prisma.chartOfAccount.findMany.mockResolvedValue([
-        { accountCode: '131', accountName: 'AR', accountType: 'asset', normalBalance: 'debit' },
-        { accountCode: '511', accountName: 'Revenue', accountType: 'revenue', normalBalance: 'credit' },
+        {
+          accountCode: '131',
+          accountName: 'AR',
+          accountType: 'asset',
+          normalBalance: 'debit',
+        },
+        {
+          accountCode: '511',
+          accountName: 'Revenue',
+          accountType: 'revenue',
+          normalBalance: 'credit',
+        },
       ]);
 
       const tb = await service.trialBalance(tenantId, '2026-06');
@@ -49,16 +61,33 @@ describe('FinancialReportService', () => {
   describe('incomeStatement', () => {
     it('computes gross profit and net income from revenue/COGS/expense', async () => {
       prisma.journalBatch.findMany.mockResolvedValue([
-        { entries: [
-          { accountCode: '511', debitAmount: '0', creditAmount: '10000' }, // revenue
-          { accountCode: '632', debitAmount: '4000', creditAmount: '0' },  // COGS
-          { accountCode: '642', debitAmount: '2000', creditAmount: '0' },  // opex
-        ] },
+        {
+          entries: [
+            { accountCode: '511', debitAmount: '0', creditAmount: '10000' }, // revenue
+            { accountCode: '632', debitAmount: '4000', creditAmount: '0' }, // COGS
+            { accountCode: '642', debitAmount: '2000', creditAmount: '0' }, // opex
+          ],
+        },
       ]);
       prisma.chartOfAccount.findMany.mockResolvedValue([
-        { accountCode: '511', accountName: 'Revenue', accountType: 'revenue', normalBalance: 'credit' },
-        { accountCode: '632', accountName: 'COGS', accountType: 'expense', normalBalance: 'debit' },
-        { accountCode: '642', accountName: 'Admin', accountType: 'expense', normalBalance: 'debit' },
+        {
+          accountCode: '511',
+          accountName: 'Revenue',
+          accountType: 'revenue',
+          normalBalance: 'credit',
+        },
+        {
+          accountCode: '632',
+          accountName: 'COGS',
+          accountType: 'expense',
+          normalBalance: 'debit',
+        },
+        {
+          accountCode: '642',
+          accountName: 'Admin',
+          accountType: 'expense',
+          normalBalance: 'debit',
+        },
       ]);
 
       const pl = await service.incomeStatement(tenantId, '2026-01', '2026-06');
@@ -76,10 +105,42 @@ describe('FinancialReportService', () => {
       const daysAgo = (n: number) =>
         new Date(new Date(asOf).getTime() - n * 86_400_000).toISOString();
       prisma.invoice.findMany.mockResolvedValue([
-        { invoiceNumber: 'A', partyId: 'p', grandTotal: '100', amountPaid: '0', balanceDue: '100', dueDate: daysAgo(-5), invoiceDate: daysAgo(-5) }, // not due
-        { invoiceNumber: 'B', partyId: 'p', grandTotal: '200', amountPaid: '0', balanceDue: '200', dueDate: daysAgo(15), invoiceDate: daysAgo(20) }, // 1-30
-        { invoiceNumber: 'C', partyId: 'p', grandTotal: '300', amountPaid: '0', balanceDue: '300', dueDate: daysAgo(100), invoiceDate: daysAgo(110) }, // 91-120
-        { invoiceNumber: 'D', partyId: 'p', grandTotal: '400', amountPaid: '0', balanceDue: '400', dueDate: daysAgo(200), invoiceDate: daysAgo(210) }, // 120+
+        {
+          invoiceNumber: 'A',
+          partyId: 'p',
+          grandTotal: '100',
+          amountPaid: '0',
+          balanceDue: '100',
+          dueDate: daysAgo(-5),
+          invoiceDate: daysAgo(-5),
+        }, // not due
+        {
+          invoiceNumber: 'B',
+          partyId: 'p',
+          grandTotal: '200',
+          amountPaid: '0',
+          balanceDue: '200',
+          dueDate: daysAgo(15),
+          invoiceDate: daysAgo(20),
+        }, // 1-30
+        {
+          invoiceNumber: 'C',
+          partyId: 'p',
+          grandTotal: '300',
+          amountPaid: '0',
+          balanceDue: '300',
+          dueDate: daysAgo(100),
+          invoiceDate: daysAgo(110),
+        }, // 91-120
+        {
+          invoiceNumber: 'D',
+          partyId: 'p',
+          grandTotal: '400',
+          amountPaid: '0',
+          balanceDue: '400',
+          dueDate: daysAgo(200),
+          invoiceDate: daysAgo(210),
+        }, // 120+
       ]);
 
       const aging = await service.aging(tenantId, 'sales', asOf);

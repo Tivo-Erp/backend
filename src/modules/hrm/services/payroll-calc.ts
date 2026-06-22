@@ -42,9 +42,9 @@ export function calcPIT(taxableIncome: Prisma.Decimal): Prisma.Decimal {
   let tax = dec(0);
   let lower = 0;
   for (const [upper, rate] of PIT_BRACKETS) {
-    const bandWidth = dec(upper === Infinity ? Number.MAX_SAFE_INTEGER : upper).sub(
-      dec(lower),
-    );
+    const bandWidth = dec(
+      upper === Infinity ? Number.MAX_SAFE_INTEGER : upper,
+    ).sub(dec(lower));
     const amountInBand = Prisma.Decimal.min(remaining, bandWidth);
     tax = tax.add(amountInBand.mul(rate));
     remaining = remaining.sub(amountInBand);
@@ -121,7 +121,11 @@ export function calcPayroll(input: PayrollInput): PayrollResult {
 
   const pitAmount = calcPIT(taxableIncome);
 
-  const netSalary = grossSalary.sub(empBHXH).sub(empBHYT).sub(empBHTN).sub(pitAmount);
+  const netSalary = grossSalary
+    .sub(empBHXH)
+    .sub(empBHYT)
+    .sub(empBHTN)
+    .sub(pitAmount);
 
   const emplrBHXH = bhxhBase.mul(VN_PAYROLL.rates.emplrBHXH).toDecimalPlaces(0);
   const emplrBHYT = bhxhBase.mul(VN_PAYROLL.rates.emplrBHYT).toDecimalPlaces(0);
