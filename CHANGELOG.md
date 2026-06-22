@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `prisma:seed:prod` script (`node dist/infra/database/prisma/seed.js`) and
+  corrected README steps for seeding the production container. `npx prisma db
+  seed` cannot run in the prod image (it invokes `ts-node src/...`, absent from
+  the production build); the compiled `dist` seed is the production path.
+- Dockerfile uses BuildKit npm cache mounts (`--mount=type=cache,target=/root/.npm`)
+  in both stages, so re-builds with an unchanged lockfile are near-instant and
+  the npm cache no longer bloats the image (dropped `npm cache clean`).
 - All service ports in `docker-compose.prod.yml` are now declarable in `.env.prod`:
   `APP_BIND_HOST`, `PORT`, `POSTGRES_PORT`, `REDIS_PORT`, `RABBITMQ_PORT`. Each is
   wired consistently into the server config, the connection URL, and the

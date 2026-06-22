@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ============================================================
 # Stage 1: Builder — Install deps, generate Prisma, build TS
 # ============================================================
@@ -16,8 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy dependency manifests first (cache layer)
 COPY package.json package-lock.json ./
 
-# Install ALL dependencies (dev + prod) for build
-RUN npm ci
+# Install ALL dependencies (dev + prod) for build.
+# BuildKit cache mount keeps npm's download cache (incl. the duckdb prebuilt)
+# across builds, so re-builds with an unchanged lockfile are near-instant.
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 # Copy Prisma schema & config for client generation
 COPY prisma.config.ts ./
@@ -53,8 +56,9 @@ RUN groupadd -g 1001 erp && \
 # Copy dependency manifests
 COPY package.json package-lock.json ./
 
-# Install production dependencies only
-RUN npm ci --omit=dev && npm cache clean --force
+# Install production dependencies only. The npm cache lives in a BuildKit cache
+# mount (not in the image layer), so no `npm cache clean` is needed to stay slim.
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
 # Copy Prisma schema + generated client from builder
 COPY --from=builder /app/src/infra/database/prisma/ ./src/infra/database/prisma/

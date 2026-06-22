@@ -472,35 +472,39 @@ nano .env.prod
 POSTGRES_PASSWORD=<generate: openssl rand -base64 32>
 ```
 
-#### 5. First-time database seed (permissions + plans)
-
-```bash
-# Start only postgres first to run seed
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d postgres
-
-# Wait for postgres to be healthy, then run seed
-docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
-  -e DATABASE_URL="postgresql://${POSTGRES_USER:-erp_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-erp_prod}" \
-  app sh -c "npx prisma db seed --schema=src/infra/database/prisma/schema.prisma" 2>/dev/null || \
-  docker exec erp-postgres psql -U erp_admin -d erp_prod -c "SELECT count(*) FROM permissions;"
-```
-
-> **Shortcut:** You can also seed after full startup using:
-> ```bash
-> docker exec erp-backend npx prisma db seed --schema=src/infra/database/prisma/schema.prisma
-> ```
-
-#### 6. Start all services
+#### 5. Build & start all services
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
 This will:
-1. Build the Docker image (multi-stage, ~2-3 min)
+1. Build the Docker image (multi-stage, ~2-3 min — re-builds are much faster
+   thanks to the BuildKit npm cache mount)
 2. Start PostgreSQL 17 → waits for healthy
 3. Start Redis 7 → waits for healthy
 4. Start app → **automatically runs `prisma migrate deploy`** then starts NestJS
+
+#### 6. First-time database seed (permissions + plans)
+
+Run **once**, after the stack is up (the app applies migrations on boot, so the
+tables exist). The seed is idempotent — re-running it is safe.
+
+```bash
+docker exec erp-backend node dist/infra/database/prisma/seed.js
+```
+
+> ⚠️ Do **not** use `npx prisma db seed` against the production container — that
+> command runs `ts-node src/...`, which is not present in the production image
+> (dev-only tooling + no `src/`). The compiled `dist/.../seed.js` above is the
+> production path (also available as `npm run prisma:seed:prod`).
+>
+> Verify it worked:
+> ```bash
+> docker exec erp-postgres psql -U erp_admin -d erp_prod -c "SELECT count(*) FROM permissions;"
+> ```
+> Without seeding, `POST /org/tenants/register` returns
+> `500 SYSTEM_PLAN_NOT_FOUND — "Starter plan not found. Run database seed first."`
 
 #### 7. Verify deployment
 
