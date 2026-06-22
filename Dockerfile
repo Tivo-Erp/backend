@@ -1,12 +1,17 @@
 # ============================================================
 # Stage 1: Builder — Install deps, generate Prisma, build TS
 # ============================================================
-FROM node:22-alpine AS builder
+# Debian (glibc) base — NOT alpine/musl — so the duckdb native package (BI/OLAP)
+# can download its prebuilt glibc binary instead of compiling from source.
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install OpenSSL for Prisma engine compatibility
-RUN apk add --no-cache openssl
+# OpenSSL for Prisma engine; ca-certificates so node-pre-gyp can fetch the
+# duckdb prebuilt binary over HTTPS.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency manifests first (cache layer)
 COPY package.json package-lock.json ./
@@ -31,15 +36,19 @@ RUN npm run build
 # ============================================================
 # Stage 2: Runner — Production-only, minimal image
 # ============================================================
-FROM node:22-alpine AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 
-RUN apk add --no-cache openssl dumb-init
+# openssl (Prisma) · ca-certificates (duckdb prebuilt fetch) · dumb-init (PID 1)
+# · wget (Docker/compose HEALTHCHECK — not bundled in debian slim).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      openssl ca-certificates dumb-init wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S erp && \
-    adduser -S erp -u 1001 -G erp
+RUN groupadd -g 1001 erp && \
+    useradd -u 1001 -g erp -m -s /bin/sh erp
 
 # Copy dependency manifests
 COPY package.json package-lock.json ./

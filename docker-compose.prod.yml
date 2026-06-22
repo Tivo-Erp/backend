@@ -92,7 +92,7 @@ services:
       <<: *app-env
       PORT: 3000
     healthcheck:
-      # node:22-alpine ships busybox wget — no curl needed.
+      # wget is installed in the runtime image (see Dockerfile) — no curl needed.
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/health/live"]
       interval: 30s
       timeout: 5s

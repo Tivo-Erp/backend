@@ -21,14 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Backing stores (postgres / redis / rabbitmq) remain internal-only on
   `erp-network`; only the API is published, on `${APP_BIND_HOST:-127.0.0.1}`
   (loopback) by default so a reverse proxy fronts it.
+- Docker runtime image switched from `node:22-alpine` to `node:22-slim`
+  (Debian/glibc) so the `duckdb` native package installs its prebuilt glibc
+  binary — BI/OLAP now works in the container with no build toolchain. Added
+  `wget` + `ca-certificates` to the image (not bundled in slim) for the
+  healthcheck and the prebuilt fetch.
 
 ### Fixed
 
 - `npm ci` failed in the Docker build (`EUSAGE: ... Missing: duckdb from lock
   file`) because `package-lock.json` was out of sync with the optional `duckdb`
-  dependency. Regenerated the lock so `npm ci` is consistent. `duckdb` stays an
-  optional dependency, so it is silently skipped on musl/alpine (no prebuilt) —
-  BI/OLAP then returns 503 unless built on a glibc image.
+  dependency. Regenerated the lock so `npm ci` is consistent (`duckdb` stays an
+  optional dependency and is loaded via a runtime dynamic import).
 
 ## [0.1.0] - 2026-06-22
 
