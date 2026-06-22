@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Boot crash `Error: Queue name cannot contain :` — BullMQ v5 forbids `:` in
+  queue names. Renamed the queues `erp:cron` / `erp:email` / `erp:outbox` to use
+  `-` (`erp-cron` / `erp-email` / `erp-outbox`).
 - `npm ci` failed in the Docker build (`EUSAGE: ... Missing: duckdb from lock
   file`) because `package-lock.json` was out of sync with the optional `duckdb`
   dependency. Regenerated the lock so `npm ci` is consistent (`duckdb` stays an

@@ -1,8 +1,10 @@
 /** BullMQ queue + job catalog (INF-001 / ADR-004). */
 
-export const QUEUE_CRON = 'erp:cron';
-export const QUEUE_EMAIL = 'erp:email';
-export const QUEUE_OUTBOX = 'erp:outbox';
+// BullMQ v5 forbids ':' in queue names (it is the Redis key separator), so the
+// segments use '-'. BullMQ still namespaces its own keys with ':' internally.
+export const QUEUE_CRON = 'erp-cron';
+export const QUEUE_EMAIL = 'erp-email';
+export const QUEUE_OUTBOX = 'erp-outbox';
 
 export const ALL_QUEUES = [QUEUE_CRON, QUEUE_EMAIL, QUEUE_OUTBOX] as const;
 
