@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `erp-network`; only the API is published, on `${APP_BIND_HOST:-127.0.0.1}`
   (loopback) by default so a reverse proxy fronts it.
 
+### Fixed
+
+- `npm ci` failed in the Docker build (`EUSAGE: ... Missing: duckdb from lock
+  file`) because `package-lock.json` was out of sync with the optional `duckdb`
+  dependency. Regenerated the lock so `npm ci` is consistent. `duckdb` stays an
+  optional dependency, so it is silently skipped on musl/alpine (no prebuilt) —
+  BI/OLAP then returns 503 unless built on a glibc image.
+
 ## [0.1.0] - 2026-06-22
 
 First consolidated, production-hardened release. Adds the platform infrastructure
