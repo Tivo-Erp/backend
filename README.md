@@ -222,10 +222,16 @@ graph TD
 | `JWT_PUBLIC_KEY_PATH` | `./keys/public.pem` | RS256 public key path |
 | `JWT_ACCESS_TTL` | `3600` | Access token TTL (seconds) |
 | `JWT_REFRESH_TTL` | `604800` | Refresh token TTL (seconds) |
-| `PORT` | `3000` | Server port |
+| `PORT` | `3000` | API host port (container always listens on 3000) |
+| `APP_BIND_HOST` | `127.0.0.1` | Host interface the API binds to (prod). Loopback-only by default — front with nginx |
+| `POSTGRES_PORT` | `5432` | Postgres internal port (prod). Not published to host |
+| `REDIS_PORT` | `6379` | Redis internal port (prod). Not published to host |
+| `RABBITMQ_PORT` | `5672` | RabbitMQ AMQP internal port (prod). Not published to host |
 | `AUTH_MAX_FAILED_ATTEMPTS` | `5` | Failed logins before lockout |
 | `AUTH_LOCK_DURATION_SEC` | `1800` | Lockout duration (seconds) |
 | `REDIS_MAX_MEMORY` | `256mb` | Redis memory cap (prod only) |
+
+> See [`.env.prod.example`](.env.prod.example) for the full documented production variable list.
 
 ---
 
@@ -365,6 +371,44 @@ src/
 > ```bash
 > curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER
 > ```
+
+---
+
+### Network Topology & Port Exposure (Production)
+
+The production stack runs on a private Docker bridge network (`erp-network`).
+Services address each other by **service name** over the internal network — so
+the backing stores never need a host port. Only the API is published, and only
+on the loopback interface so a reverse proxy fronts it.
+
+```
+            ┌───────── host ─────────┐
+ Internet ─▶│ nginx (443) ─▶ 127.0.0.1:${PORT} │   ← only published port
+            └────────────┬───────────┘
+                         │  erp-network (bridge, internal DNS)
+      ┌──────────┬───────┴───────┬───────────┬──────────┐
+      ▼          ▼               ▼           ▼          ▼
+   app:3000   worker        postgres:5432  redis:6379  rabbitmq:5672
+ (published)  (no port)     (internal)     (internal)  (internal)
+```
+
+| Service | Internal port | Published to host? | Rationale |
+|---------|--------------|--------------------|-----------|
+| **app** (API) | 3000 | **Yes — `${APP_BIND_HOST:-127.0.0.1}:${PORT}` only** | Fronted by nginx; never exposed straight to the internet |
+| **worker** | — | No | Background process, no listener |
+| **postgres** | `${POSTGRES_PORT:-5432}` | No | Reached as `postgres:5432` on `erp-network` |
+| **redis** | `${REDIS_PORT:-6379}` | No | Reached as `redis:6379` on `erp-network` |
+| **rabbitmq** | `${RABBITMQ_PORT:-5672}` | No | Reached as `rabbitmq:5672`; mgmt UI (15672) also internal |
+
+**Changing ports** — all ports above are declarable in `.env.prod` (see table).
+Each is wired consistently into the server config, the connection URL, and the
+healthcheck, so changing one variable is enough. Do **not** publish postgres /
+redis / rabbitmq to the host — exposing a datastore or broker is a security risk.
+For occasional admin access (psql, RabbitMQ UI) use `docker exec` or an SSH
+tunnel instead of a permanent port mapping.
+
+> Changing a port is a runtime change only — `docker compose ... up -d` is enough,
+> no image rebuild required.
 
 ---
 

@@ -5,6 +5,23 @@ All notable changes to the ERP Backend are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- All service ports in `docker-compose.prod.yml` are now declarable in `.env.prod`:
+  `APP_BIND_HOST`, `PORT`, `POSTGRES_PORT`, `REDIS_PORT`, `RABBITMQ_PORT`. Each is
+  wired consistently into the server config, the connection URL, and the
+  healthcheck, so one variable change is sufficient.
+- README: "Network Topology & Port Exposure" section documenting which ports are
+  published vs internal-only, with a topology diagram.
+
+### Changed
+
+- Backing stores (postgres / redis / rabbitmq) remain internal-only on
+  `erp-network`; only the API is published, on `${APP_BIND_HOST:-127.0.0.1}`
+  (loopback) by default so a reverse proxy fronts it.
+
 ## [0.1.0] - 2026-06-22
 
 First consolidated, production-hardened release. Adds the platform infrastructure
@@ -74,4 +91,5 @@ Earlier iterations established the foundation (not individually tagged):
   branch), M-UAM (users / roles / permissions / audit log), RBAC + tenant guards,
   sparse fieldsets, pagination, Docker configuration, and unit tests.
 
+[Unreleased]: https://github.com/Tivo-Erp/backend/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/Tivo-Erp/backend/releases/tag/v0.1.0
