@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Worker boot crash — `Nest can't resolve dependencies of ChartOfAccountService
+  (..., CacheService)`. The worker process bootstraps `WorkerModule`, which never
+  imported the `@Global` `CacheModule` (a global module must still be imported
+  once in the bootstrapped tree). Added `CacheModule` to `WorkerModule`.
 - Boot crash `Error: Queue name cannot contain :` — BullMQ v5 forbids `:` in
   queue names. Renamed the queues `erp:cron` / `erp:email` / `erp:outbox` to use
   `-` (`erp-cron` / `erp-email` / `erp-outbox`).

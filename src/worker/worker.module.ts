@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { appConfig } from '../config/app.config.js';
 import { DatabaseModule } from '../infra/database/database.module.js';
 import { RedisModule } from '../infra/redis/redis.module.js';
+import { CacheModule } from '../infra/cache/cache.module.js';
 import { EventsModule } from '../infra/events/events.module.js';
 import { QueueModule } from '../infra/queue/queue.module.js';
 import { EmailModule } from '../infra/email/email.module.js';
@@ -24,6 +25,9 @@ import { NotificationEventsConsumer } from '../infra/events/notification.consume
     ConfigModule.forRoot({ isGlobal: true, load: [appConfig] }),
     DatabaseModule,
     RedisModule,
+    // @Global, but a @Global module must still be imported once in the bootstrapped
+    // tree — FinModule's ChartOfAccountService injects CacheService.
+    CacheModule,
     EventsModule,
     QueueModule,
     EmailModule,
