@@ -55,4 +55,8 @@ export const appConfig = registerAs('app', () => ({
   // DuckDB column store. Unset ⇒ BI endpoints return 503 BI_OLAP_UNAVAILABLE
   // (optional-safe). ':memory:' is handy for dev/tests; a file path persists.
   duckdbPath: process.env.DUCKDB_PATH || '',
+  // DuckDB is single-writer per file: only ONE process may hold it read-write.
+  // The worker (ETL writer) sets this false; the API (query reader) sets it true
+  // so the two processes can share one cube file. See DuckDbService.
+  duckdbReadonly: process.env.DUCKDB_READONLY === 'true',
 }));

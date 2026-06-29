@@ -333,4 +333,112 @@ describe('AuthService', () => {
       );
     });
   });
+
+  // ─── getTenantsForCredentials ──────────────────────────────────────────────
+
+  describe('getTenantsForCredentials()', () => {
+    it('returns matching tenants when password is valid', async () => {
+      const u1 = mockUser({
+        tenantId: 't1',
+        tenant: { id: 't1', slug: 'acme', name: 'Acme', logoUrl: null },
+      });
+      const u2 = mockUser({
+        id: 'user-uuid-2',
+        tenantId: 't2',
+        tenant: { id: 't2', slug: 'globex', name: 'Globex', logoUrl: 'x.png' },
+      });
+      mockPrisma.user.findMany.mockResolvedValue([u1, u2]);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      const result = await service.getTenantsForCredentials(
+        'owner@acme.com',
+        'anypass',
+      );
+
+      expect(result.tenants).toEqual([
+        { tenantId: 't1', tenantSlug: 'acme', tenantName: 'Acme', logoUrl: null },
+        {
+          tenantId: 't2',
+          tenantSlug: 'globex',
+          tenantName: 'Globex',
+          logoUrl: 'x.png',
+        },
+      ]);
+    });
+
+    it('excludes tenants whose password does not match', async () => {
+      const u1 = mockUser({
+        tenant: { id: 't1', slug: 'acme', name: 'Acme', logoUrl: null },
+      });
+      const u2 = mockUser({
+        id: 'user-uuid-2',
+        tenant: { id: 't2', slug: 'globex', name: 'Globex', logoUrl: null },
+      });
+      mockPrisma.user.findMany.mockResolvedValue([u1, u2]);
+      // first matches, second does not
+      (bcrypt.compare as jest.Mock)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+
+      const result = await service.getTenantsForCredentials(
+        'owner@acme.com',
+        'anypass',
+      );
+
+      expect(result.tenants).toHaveLength(1);
+      expect(result.tenants[0].tenantSlug).toBe('acme');
+    });
+
+    it('no matching email — pays bcrypt cost and returns empty list (anti-enumeration)', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([]);
+
+      const result = await service.getTenantsForCredentials(
+        'ghost@nowhere.com',
+        'anypass',
+      );
+
+      expect(result.tenants).toEqual([]);
+      expect(bcrypt.compare).toHaveBeenCalled();
+    });
+  });
+
+  // ─── getProfile ────────────────────────────────────────────────────────────
+
+  describe('getProfile()', () => {
+    it('returns the current user profile with roles and permissions', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(
+        mockUser({
+          avatarUrl: 'a.png',
+          mfaEnabled: true,
+          emailVerifiedAt: null,
+          lastLoginAt: null,
+          tenant: { id: 'tenant-uuid-1', slug: 'acme', name: 'Acme' },
+        }),
+      );
+      mockPrisma.userRole.findMany.mockResolvedValue([
+        {
+          role: {
+            name: 'admin',
+            rolePermissions: [{ permission: { code: 'uam:user:read' } }],
+          },
+        },
+      ]);
+
+      const result = await service.getProfile('user-uuid-1');
+
+      expect(result.id).toBe('user-uuid-1');
+      expect(result.tenantSlug).toBe('acme');
+      expect(result.tenantName).toBe('Acme');
+      expect(result.roles).toEqual(['admin']);
+      expect(result.permissions).toEqual(['uam:user:read']);
+    });
+
+    it('throws AUTH_ACCOUNT_INACTIVE when user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getProfile('missing')).rejects.toMatchObject({
+        code: 'AUTH_ACCOUNT_INACTIVE',
+      });
+    });
+  });
 });

@@ -118,21 +118,30 @@ sequenceDiagram
     API->>DB: COMMIT
     API-->>Client: { tenantId, userId, slug, status }
 
-    Note over Client,DB: 2️⃣ LOGIN (Public - Get JWT Token)
+    Note over Client,DB: 2️⃣ (Tùy chọn) TENANT DISCOVERY (Public - chọn tenant khi multi-tenant)
+    Client->>API: POST /api/v1/auth/tenants<br/>{ email, password }
+    API->>DB: Verify credentials trên từng tenant
+    API-->>Client: { tenants: [{ tenantId, tenantSlug, tenantName, logoUrl }] }
+
+    Note over Client,DB: 3️⃣ LOGIN (Public - Get JWT Token)
     Client->>API: POST /api/v1/auth/login<br/>{ email, password, tenantSlug }
     API->>DB: Verify credentials + check locks
     API-->>Client: { accessToken (RS256), refreshToken, user }
 
-    Note over Client,DB: 3️⃣ SETUP ORG STRUCTURE (Authenticated)
+    Note over Client,DB: 4️⃣ GET PROFILE (Authenticated)
+    Client->>API: GET /api/v1/auth/me<br/>🔒 Bearer Token
+    API-->>Client: { id, email, name, tenant, roles, permissions }
+
+    Note over Client,DB: 5️⃣ SETUP ORG STRUCTURE (Authenticated)
     Client->>API: POST /api/v1/org/branches<br/>🔒 Bearer Token
     API-->>Client: Branch created
 
-    Note over Client,DB: 4️⃣ INVITE TEAM MEMBERS
+    Note over Client,DB: 6️⃣ INVITE TEAM MEMBERS
     Client->>API: POST /api/v1/uam/users/invite<br/>🔒 Bearer Token
     API->>DB: INSERT user (status=invited)
     API-->>Client: User invited
 
-    Note over Client,DB: 5️⃣ CONFIGURE ROLES & PERMISSIONS
+    Note over Client,DB: 7️⃣ CONFIGURE ROLES & PERMISSIONS
     Client->>API: POST /api/v1/uam/roles<br/>🔒 Bearer Token
     API-->>Client: Custom role created
 ```
@@ -152,11 +161,23 @@ curl -X POST http://localhost:3000/api/v1/org/tenants/register \
 # → Response: { tenantId, userId, slug }
 # → User "admin@abc.vn" được tạo tự động với role "tenant_owner"
 
-# ── Step 2: Login để lấy JWT token ──
+# ── Step 2 (tùy chọn): Lấy danh sách tenant của user (khi 1 email thuộc nhiều tenant) ──
+curl -s -X POST http://localhost:3000/api/v1/auth/tenants \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@abc.vn","password":"SecureP@ss123"}' | python3 -m json.tool
+# → { "tenants": [ { "tenantId", "tenantSlug", "tenantName", "logoUrl" }, ... ] }
+# → Dùng tenantSlug nhận được cho bước login bên dưới (nếu có nhiều tenant)
+
+# ── Step 3: Login để lấy JWT token (thêm "tenantSlug" nếu email thuộc nhiều tenant) ──
 TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@abc.vn","password":"SecureP@ss123"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])")
+
+# ── Step 3b: Lấy profile user hiện tại từ token ──
+curl -s http://localhost:3000/api/v1/auth/me \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+# → { id, email, firstName, lastName, tenantSlug, roles, permissions, ... }
 
 # ── Step 3: Tạo chi nhánh ──
 curl -X POST http://localhost:3000/api/v1/org/branches \
@@ -280,7 +301,7 @@ All API endpoints follow the [API Design Guidelines](../docs/erp-specs/API_Desig
 
 ```
 Base URL: /api/v1
-Auth:     /api/v1/auth/login, /api/v1/auth/refresh, /api/v1/auth/logout
+Auth:     /api/v1/auth/tenants, /api/v1/auth/login, /api/v1/auth/refresh, /api/v1/auth/logout, /api/v1/auth/me
 Org:      /api/v1/org/tenants/*, /api/v1/org/branches/*
 UAM:      /api/v1/uam/users/*, /api/v1/uam/roles/*
 MAT:      /api/v1/master-data/items/*

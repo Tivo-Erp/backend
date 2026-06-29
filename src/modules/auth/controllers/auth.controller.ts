@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
@@ -18,6 +18,9 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
   TokenConfirmDto,
+  TenantDiscoveryDto,
+  TenantDiscoveryResponseDto,
+  MeResponseDto,
 } from '../dto/auth.dto.js';
 import { Public, CurrentUser } from '../../../common/decorators/index.js';
 import type { JwtPayload } from '../interfaces/jwt-payload.interface.js';
@@ -30,6 +33,27 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly accountSecurity: AccountSecurityService,
   ) {}
+
+  @Post('tenants')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'List tenants for credentials',
+    description:
+      'Pre-login discovery. Given email + password, returns the tenants the ' +
+      'user can sign into so a multi-tenant client can prompt for a tenant ' +
+      'before calling /login with `tenantSlug`. Returns an empty list when no ' +
+      'tenant matches the credentials (no account enumeration).',
+  })
+  @ApiBody({ type: TenantDiscoveryDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Matching tenants (possibly empty)',
+    type: TenantDiscoveryResponseDto,
+  })
+  async tenants(@Body() dto: TenantDiscoveryDto) {
+    return this.authService.getTenantsForCredentials(dto.email, dto.password);
+  }
 
   @Post('login')
   @Public()
@@ -100,6 +124,22 @@ export class AuthController {
   async logout(@Body() dto: RefreshTokenDto) {
     await this.authService.logout(dto.refreshToken);
     return { message: 'Logged out successfully' };
+  }
+
+  // ── Current user ─────────────────────────────────────────────────
+
+  @Get('me')
+  @ApiBearerAuth('JWT-Auth')
+  @ApiOperation({
+    summary: 'Get current user profile',
+    description:
+      'Return the authenticated user profile (resolved from the bearer token), ' +
+      'including tenant context, roles and permissions.',
+  })
+  @ApiResponse({ status: 200, description: 'Current user', type: MeResponseDto })
+  @ApiResponse({ status: 401, description: 'Missing or invalid token' })
+  async me(@CurrentUser() user: JwtPayload) {
+    return this.authService.getProfile(user.sub);
   }
 
   // ── MFA management (authenticated self-service) ──────────────────

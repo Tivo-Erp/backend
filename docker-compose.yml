@@ -32,7 +32,7 @@ services:
 
   # Optional (INF-002). Set RABBITMQ_URL=amqp://erp:erp_secret_dev@localhost:5672 to enable.
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13-management
     ports: ['5672:5672', '15672:15672'] # AMQP + management UI
     environment:
       RABBITMQ_DEFAULT_USER: erp

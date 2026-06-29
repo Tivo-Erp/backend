@@ -368,6 +368,78 @@ export class AuthService {
     return users[0];
   }
 
+  /**
+   * Pre-login tenant discovery. Returns the tenants whose membership matches the
+   * given credentials so a multi-tenant client can prompt for a tenant before
+   * calling /login. SEC: the password is verified against every candidate row,
+   * so this never reveals which tenants an email exists in WITHOUT the password
+   * (consistent with the anti-enumeration posture of login). When nothing
+   * matches, the bcrypt cost is still paid once and an empty list is returned.
+   */
+  async getTenantsForCredentials(email: string, password: string) {
+    const users = await this.prisma.user.findMany({
+      where: { email, deletedAt: null },
+      include: { tenant: true },
+    });
+
+    if (users.length === 0) {
+      await bcrypt.compare(password, DUMMY_BCRYPT_HASH);
+      return { tenants: [] };
+    }
+
+    const matched: typeof users = [];
+    for (const user of users) {
+      if (await bcrypt.compare(password, user.passwordHash)) {
+        matched.push(user);
+      }
+    }
+
+    return {
+      tenants: matched.map((u) => ({
+        tenantId: u.tenantId,
+        tenantSlug: u.tenant.slug,
+        tenantName: u.tenant.name,
+        logoUrl: u.tenant.logoUrl ?? null,
+      })),
+    };
+  }
+
+  /** Current authenticated user's profile (fresh from DB) + roles/permissions. */
+  async getProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { tenant: true },
+    });
+
+    if (!user || user.deletedAt) {
+      throw new BusinessException(
+        'AUTH_ACCOUNT_INACTIVE',
+        'Account not found',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const { roles, permissions } = await this.loadRolesAndPermissions(user.id);
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      avatarUrl: user.avatarUrl ?? null,
+      status: user.status,
+      isSuperAdmin: user.isSuperAdmin,
+      mfaEnabled: user.mfaEnabled,
+      emailVerifiedAt: user.emailVerifiedAt ?? null,
+      lastLoginAt: user.lastLoginAt ?? null,
+      tenantId: user.tenantId,
+      tenantSlug: user.tenant.slug,
+      tenantName: user.tenant.name,
+      roles,
+      permissions,
+    };
+  }
+
   private async loadRolesAndPermissions(userId: string) {
     const userRoles = await this.prisma.userRole.findMany({
       where: { userId },

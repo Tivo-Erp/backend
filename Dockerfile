@@ -72,7 +72,12 @@ COPY --from=builder /app/dist ./dist
 # Must be present at the working directory root for `prisma migrate deploy`.
 COPY prisma.config.ts ./
 
-# Set ownership
+# Writable data dir for the optional DuckDB OLAP cube. Created erp-owned so that
+# a fresh `duckdbdata` named volume mounted here inherits writable ownership for
+# the non-root user (Docker copies the mount point's perms into a new volume).
+RUN mkdir -p /app/data
+
+# Set ownership (covers /app/data so the non-root user can write the cube)
 RUN chown -R erp:erp /app
 
 USER erp

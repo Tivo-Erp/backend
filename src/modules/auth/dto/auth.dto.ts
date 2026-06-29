@@ -38,6 +38,48 @@ export class RefreshTokenDto {
   refreshToken: string;
 }
 
+// ── Tenant discovery (pre-login) ──────────────────────────────────
+
+export class TenantDiscoveryDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(8)
+  password: string;
+}
+
+export class TenantSummaryDto {
+  tenantId: string;
+  tenantSlug: string;
+  tenantName: string;
+  logoUrl: string | null;
+}
+
+export class TenantDiscoveryResponseDto {
+  tenants: TenantSummaryDto[];
+}
+
+// ── Current user profile (GET /auth/me) ───────────────────────────
+
+export class MeResponseDto {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
+  status: string;
+  isSuperAdmin: boolean;
+  mfaEnabled: boolean;
+  emailVerifiedAt: Date | null;
+  lastLoginAt: Date | null;
+  tenantId: string;
+  tenantSlug: string;
+  tenantName: string;
+  roles: string[];
+  permissions: string[];
+}
+
 // ── SEC-001: Auth hardening DTOs ──────────────────────────────────
 
 export class MfaVerifyDto {
